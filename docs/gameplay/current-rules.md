@@ -22,7 +22,8 @@ fonctionnelle et les principaux garde-fous techniques :
   village et stock personnel sécurisé ;
 - disciplines fixes Épée et Barrière : attaque automatique, Fente, protection passive
   et Dôme actif ;
-- montée de niveau avec trois choix d'amélioration sans pause de la simulation ;
+- montée de niveau avec trois choix d'amélioration pondérés, variés et reproductibles
+  à graine identique, sans pause de la simulation ;
 - zone du village délimitée visuellement avec indication intérieur/extérieur ;
 - fabrication de plusieurs balistes librement placées dans le village, avec chantier
   de cinq secondes interrompu par les dégâts, portée visible et tirs animés, puis
@@ -67,7 +68,8 @@ boucle.
 - La détection diurne repose initialement sur perception, bruit et jauge de réveil.
 - À la nuit, les groupes non gardiens vivants convergent vers le village.
 - La nuit possède une durée fixe.
-- À l'aube, les survivants retournent dans le monde et restent présents.
+- À l'aube, les survivants retournent dans le monde et restent présents sans changer
+  de type ni perdre leurs caractéristiques.
 - Des tanières ou portails indestructibles en V1 produisent de nouveaux groupes à
   chaque aube, selon l'avancement et le nombre de joueurs.
 

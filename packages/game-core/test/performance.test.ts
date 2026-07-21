@@ -23,8 +23,16 @@ describe('reproducible simulation performance scenario', () => {
     }
     const durationMs = Date.now() - startedAt;
 
-    expect(simulation.getState().tick).toBe(tickCount);
-    expect(simulation.getState().enemies.length).toBeGreaterThan(100);
-    expect(durationMs).toBeGreaterThanOrEqual(0);
+    const snapshot = simulation.createSnapshot();
+    expect(snapshot.tick).toBe(tickCount);
+    expect(snapshot.enemies.length).toBeGreaterThan(100);
+    expect(durationMs).toBeLessThan(2_000);
+
+    const snapshotStartedAt = Date.now();
+    for (let index = 0; index < 1_000; index += 1) {
+      simulation.createSnapshot();
+    }
+    const snapshotDurationMs = Date.now() - snapshotStartedAt;
+    expect(snapshotDurationMs).toBeLessThan(1_000);
   });
 });

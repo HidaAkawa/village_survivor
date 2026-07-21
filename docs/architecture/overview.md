@@ -135,8 +135,9 @@ entre toutes les machines possibles.
 1. Le client construit une `LocalSession` avec un contenu validé et une graine.
 2. `LocalSession.start()` initialise la simulation et la boucle à pas fixe.
 3. Les entrées sont normalisées en `PlayerInput` puis envoyées avec `sendInput()`.
-4. La simulation valide les intentions et avance.
-5. La session publie un `PublicGameState` immuable pour le client.
+4. La simulation valide les intentions et avance sans allouer d'état public.
+5. La session crée puis publie un `PublicGameState` immuable lorsqu'au moins un tick a
+   été traité.
 6. Phaser rend cet état sans recalculer les règles.
 7. `stop()` libère timers, abonnements et ressources.
 
@@ -171,8 +172,14 @@ Principes :
 - relations entre contenus validées ;
 - unités visibles dans les noms ou types ;
 - aucune valeur d'équilibrage cachée dans une scène ;
+- paramètres de génération, perception, vagues et réparation regroupés avec le
+  catalogue par défaut ;
 - erreurs de validation lisibles au démarrage et en CI ;
 - données de test minimales séparées du catalogue de production.
+
+Dans `game-core`, `GameSimulation` orchestre des systèmes séparés pour le mouvement,
+le combat, la construction, les phases et le ciblage. La projection sérialisable est
+isolée dans `snapshot.ts` et n'est pas exécutée par `step()`.
 
 ## 11. Rendu et assets
 

@@ -1,97 +1,49 @@
 import type { GameContent, UpgradeDefinition } from '@village-survivor/content';
 import type {
   EnemyKind,
-  EnemyState,
   GameEvent,
   GameEventType,
   GamePhase,
   GameStatus,
   PlayerInput,
   PublicGameState,
-  UpgradeChoice,
   Vector2,
 } from '@village-survivor/protocol';
 
+import { type CombatContext, updateDefenseCombat, updateEnemyCombat } from './combat-system.js';
+import { canPlaceDefenseAt, createDefense, repairDefense } from './construction-system.js';
+import { clampPosition, distance, distanceToSegment } from './geometry.js';
+import { updatePlayerMovement } from './movement-system.js';
 import {
-  clampPosition,
-  distance,
-  distanceSquared,
-  distanceToSegment,
-  moveTowards,
-  normalized,
-} from './geometry.js';
+  awakenAssailants,
+  dayReinforcementInstructions,
+  finalSpawnInstructions,
+  nightSpawnInstructions,
+  restSurvivingAssailants,
+  type SpawnInstruction,
+} from './phase-system.js';
 import { SeededRandom } from './random.js';
-
-interface MutableEnemy {
-  id: string;
-  kind: EnemyKind;
-  position: Vector2;
-  home: Vector2;
-  hp: number;
-  maxHp: number;
-  awake: boolean;
-  attackCooldownRemainingMs: number;
-}
-
-interface MutableResource {
-  id: string;
-  position: Vector2;
-  amountRemaining: number;
-  guardianId: string;
-}
-
-interface MutablePlayer {
-  position: Vector2;
-  hp: number;
-  maxHp: number;
-  ward: number;
-  maxWard: number;
-  wardRefreshRemainingMs: number;
-  moveSpeed: number;
-  carriedWood: number;
-  storedWood: number;
-  carryCapacity: number;
-  experience: number;
-  experienceToNext: number;
-  level: number;
-  swordAutoDamage: number;
-  swordAutoRange: number;
-  swordAutoCooldownMs: number;
-  swordAutoCooldownRemainingMs: number;
-  swordCooldownMs: number;
-  swordCooldownRemainingMs: number;
-  barrierCooldownMs: number;
-  barrierCooldownRemainingMs: number;
-  barrierDurationMs: number;
-  barrierActiveRemainingMs: number;
-  selectedUpgrades: string[];
-  lastAim: Vector2;
-}
-
-interface MutableVillage {
-  position: Vector2;
-  hp: number;
-  maxHp: number;
-  heartLevel: 1 | 2 | 3;
-  underAttack: boolean;
-}
-
-interface MutableDefense {
-  id: string;
-  position: Vector2;
-  built: boolean;
-  hp: number;
-  maxHp: number;
-  cooldownRemainingMs: number;
-  buildRemainingMs: number;
-}
+import { createPublicGameState } from './snapshot.js';
+import type {
+  MutableDefense,
+  MutableEnemy,
+  MutablePlayer,
+  MutableResource,
+  MutableVillage,
+} from './state.js';
+import {
+  findNearestDefense,
+  findNearestEnemy,
+  isEnemyTargetable,
+  wakeNearbyEnemies,
+} from './targeting.js';
+import { selectWeightedUpgrades } from './upgrade-selection.js';
 
 const VILLAGE_POSITION: Vector2 = { x: 0, y: 0 };
-const ENEMY_RADIUS = 18;
-const PLAYER_AGGRO_RANGE = 165;
 
 export class GameSimulation {
   private readonly random: SeededRandom;
+  private readonly upgradeRandom: SeededRandom;
   private readonly seed: string;
   private readonly content: GameContent;
   private readonly resources: MutableResource[] = [];
@@ -99,6 +51,7 @@ export class GameSimulation {
   private readonly defenses: MutableDefense[] = [];
   private readonly player: MutablePlayer;
   private readonly village: MutableVillage;
+  private readonly combatContext: CombatContext;
   private status: GameStatus = 'ready';
   private resultReason: string | undefined;
   private phase: GamePhase = 'day';
@@ -117,9 +70,10 @@ export class GameSimulation {
     this.content = content;
     this.seed = seed;
     this.random = new SeededRandom(seed);
+    this.upgradeRandom = new SeededRandom(`${seed}:upgrades`);
     this.phaseRemainingMs = content.simulation.dayDurationMs;
     this.player = {
-      position: { x: 0, y: 120 },
+      position: { x: 0, y: content.world.playerStartOffsetY },
       hp: content.player.maxHp,
       maxHp: content.player.maxHp,
       ward: content.barrier.maxWard,
@@ -130,7 +84,8 @@ export class GameSimulation {
       storedWood: 0,
       carryCapacity: content.player.carryCapacity,
       experience: 0,
-      experienceToNext: content.progression.experiencePerLevel[0] ?? 999,
+      experienceToNext:
+        content.progression.experiencePerLevel[0] ?? content.progression.fallbackExperienceToNext,
       level: 1,
       swordAutoDamage: content.sword.autoDamage,
       swordAutoRange: content.sword.autoRange,
@@ -152,6 +107,18 @@ export class GameSimulation {
       heartLevel: 1,
       underAttack: false,
     };
+    this.combatContext = {
+      content: this.content,
+      enemies: this.enemies,
+      defenses: this.defenses,
+      player: this.player,
+      village: this.village,
+      damageEnemy: (enemy, amount) => this.damageEnemy(enemy, amount),
+      damagePlayer: (amount, attackerPosition) =>
+        this.applyDamageToPlayer(amount, attackerPosition),
+      destroyDefense: (defense) => this.destroyDefense(defense),
+      addEvent: (type, message, details) => this.addEvent(type, message, details),
+    };
     this.generateWorld();
   }
 
@@ -161,10 +128,10 @@ export class GameSimulation {
     }
   }
 
-  public step(input: PlayerInput): PublicGameState {
+  public step(input: PlayerInput): void {
     this.events = [];
     if (this.status !== 'running') {
-      return this.getState();
+      return;
     }
 
     const deltaMs = this.content.simulation.tickMs;
@@ -174,11 +141,17 @@ export class GameSimulation {
     this.village.underAttack = false;
 
     this.updateCooldowns(deltaMs);
-    this.updatePlayerMovement(input, deltaSeconds);
+    updatePlayerMovement(
+      this.player,
+      input,
+      deltaSeconds,
+      this.content.world,
+      this.activeConstructionId !== undefined,
+    );
     this.useAbilities(input);
     this.updateAutomaticSword();
-    this.updateDefenses();
-    this.updateEnemies(deltaMs, deltaSeconds);
+    updateDefenseCombat(this.combatContext);
+    updateEnemyCombat(this.combatContext, this.phase, deltaMs, deltaSeconds);
     this.updateDefenseConstruction(deltaMs);
     this.removeDefeatedEnemies();
     this.updateVillageSupport(deltaSeconds);
@@ -186,100 +159,30 @@ export class GameSimulation {
     this.handleUpgradeSelection(input);
     this.updatePhase(deltaMs);
     this.checkDefeat();
-    return this.getState();
   }
 
-  public getState(): PublicGameState {
-    const result = this.resultReason === undefined ? {} : { resultReason: this.resultReason };
+  public createSnapshot(): PublicGameState {
     const interactionHint = this.getInteractionHint();
-    const hint = interactionHint === undefined ? {} : { interactionHint };
-    return {
+    return createPublicGameState({
       tick: this.tick,
       elapsedMs: this.elapsedMs,
       status: this.status,
-      ...result,
+      resultReason: this.resultReason,
       seed: this.seed,
-      world: {
-        width: this.content.world.width,
-        height: this.content.world.height,
-      },
+      content: this.content,
       phase: this.phase,
       cycle: this.cycle,
-      phaseRemainingMs: Math.max(0, this.phaseRemainingMs),
-      player: {
-        id: 'player-1',
-        position: { ...this.player.position },
-        hp: this.player.hp,
-        maxHp: this.player.maxHp,
-        ward: this.player.ward,
-        maxWard: this.player.maxWard,
-        moveSpeed: this.player.moveSpeed,
-        carriedWood: this.player.carriedWood,
-        storedWood: this.player.storedWood,
-        carryCapacity: this.player.carryCapacity,
-        experience: this.player.experience,
-        experienceToNext: this.player.experienceToNext,
-        level: this.player.level,
-        swordAutoDamage: this.player.swordAutoDamage,
-        swordAutoRange: this.player.swordAutoRange,
-        swordAutoCooldownMs: this.player.swordAutoCooldownMs,
-        swordAutoCooldownRemainingMs: this.player.swordAutoCooldownRemainingMs,
-        sword: {
-          cooldownMs: this.player.swordCooldownMs,
-          cooldownRemainingMs: this.player.swordCooldownRemainingMs,
-        },
-        barrier: {
-          cooldownMs: this.player.barrierCooldownMs,
-          cooldownRemainingMs: this.player.barrierCooldownRemainingMs,
-          activeRemainingMs: this.player.barrierActiveRemainingMs,
-        },
-        selectedUpgrades: [...this.player.selectedUpgrades],
-      },
-      village: {
-        position: { ...this.village.position },
-        areaRadius: this.content.village.areaRadius,
-        hp: this.village.hp,
-        maxHp: this.village.maxHp,
-        heartLevel: this.village.heartLevel,
-        underAttack: this.village.underAttack,
-      },
-      defenses: this.defenses.map((defense) => ({
-        id: defense.id,
-        position: { ...defense.position },
-        built: defense.built,
-        hp: defense.hp,
-        maxHp: defense.maxHp,
-        range: this.content.defense.range,
-        cooldownRemainingMs: defense.cooldownRemainingMs,
-        buildRemainingMs: defense.buildRemainingMs,
-        buildDurationMs: this.content.defense.buildDurationMs,
-      })),
-      resources: this.resources.map((resource) => ({
-        id: resource.id,
-        position: { ...resource.position },
-        amountRemaining: resource.amountRemaining,
-        guardianId: resource.guardianId,
-      })),
-      enemies: this.enemies.map((enemy): EnemyState => ({
-        id: enemy.id,
-        kind: enemy.kind,
-        position: { ...enemy.position },
-        home: { ...enemy.home },
-        hp: enemy.hp,
-        maxHp: enemy.maxHp,
-        awake: enemy.awake,
-        attackCooldownRemainingMs: enemy.attackCooldownRemainingMs,
-      })),
-      upgradeChoices: this.upgradeChoices.map((upgrade): UpgradeChoice => ({
-        id: upgrade.id,
-        name: upgrade.name,
-        description: upgrade.description,
-        discipline: upgrade.discipline,
-      })),
-      ...hint,
+      phaseRemainingMs: this.phaseRemainingMs,
+      player: this.player,
+      village: this.village,
+      defenses: this.defenses,
+      resources: this.resources,
+      enemies: this.enemies,
+      upgradeChoices: this.upgradeChoices,
+      interactionHint,
       objective: this.getObjective(),
-      events: this.events.map((event) => ({ ...event })),
-    };
+      events: this.events,
+    });
   }
 
   public damagePlayer(amount: number): void {
@@ -332,7 +235,9 @@ export class GameSimulation {
   }
 
   public spawnEnemy(kind: EnemyKind = 'raider', position?: Vector2): string {
-    const spawnPosition = position ?? this.randomRingPosition(650, 900);
+    const ring = this.content.world.debugEnemySpawnRing;
+    const spawnPosition =
+      position ?? this.randomRingPosition(ring.minimumRadius, ring.maximumRadius);
     return this.createEnemy(kind, spawnPosition, spawnPosition, kind !== 'sleeper');
   }
 
@@ -352,15 +257,18 @@ export class GameSimulation {
   private generateWorld(): void {
     for (let index = 0; index < this.content.world.resourceNodeCount; index += 1) {
       const baseAngle = (index / this.content.world.resourceNodeCount) * Math.PI * 2;
-      const angle = baseAngle + this.random.between(-0.3, 0.3);
-      const radius = 440 + index * 140;
+      const jitter = this.content.world.resourceAngleJitterRadians;
+      const angle = baseAngle + this.random.between(-jitter, jitter);
+      const radius =
+        this.content.world.resourceRingStartRadius +
+        index * this.content.world.resourceRingStepRadius;
       const position = {
         x: Math.cos(angle) * radius,
         y: Math.sin(angle) * radius,
       };
       const guardianPosition = {
-        x: position.x + Math.cos(angle + Math.PI / 2) * 58,
-        y: position.y + Math.sin(angle + Math.PI / 2) * 58,
+        x: position.x + Math.cos(angle + Math.PI / 2) * this.content.world.guardianOffset,
+        y: position.y + Math.sin(angle + Math.PI / 2) * this.content.world.guardianOffset,
       };
       const guardianId = this.createEnemy('guardian', guardianPosition, guardianPosition, true);
       this.resources.push({
@@ -371,8 +279,12 @@ export class GameSimulation {
       });
     }
 
+    const sleeperRing = this.content.world.initialSleeperRing;
     for (let index = 0; index < this.content.world.initialSleeperCount; index += 1) {
-      const position = this.randomRingPosition(420, 960);
+      const position = this.randomRingPosition(
+        sleeperRing.minimumRadius,
+        sleeperRing.maximumRadius,
+      );
       this.createEnemy('sleeper', position, position, false);
     }
   }
@@ -430,28 +342,6 @@ export class GameSimulation {
     }
   }
 
-  private updatePlayerMovement(input: PlayerInput, deltaSeconds: number): void {
-    if (this.activeConstructionId !== undefined) {
-      return;
-    }
-    const movement = normalized({ x: input.moveX, y: input.moveY });
-    const nextPosition = {
-      x: this.player.position.x + movement.x * this.player.moveSpeed * deltaSeconds,
-      y: this.player.position.y + movement.y * this.player.moveSpeed * deltaSeconds,
-    };
-    this.player.position = clampPosition(
-      nextPosition,
-      this.content.world.width,
-      this.content.world.height,
-    );
-    if (input.aimX !== undefined && input.aimY !== undefined) {
-      const aim = normalized({ x: input.aimX, y: input.aimY });
-      if (aim.x !== 0 || aim.y !== 0) {
-        this.player.lastAim = aim;
-      }
-    }
-  }
-
   private useAbilities(input: PlayerInput): void {
     if (input.activateSword === true && this.player.swordCooldownRemainingMs <= 0) {
       const start = this.player.position;
@@ -463,11 +353,11 @@ export class GameSimulation {
       this.player.position = end;
       for (const enemy of this.enemies) {
         if (
-          this.isEnemyTargetable(enemy) &&
+          isEnemyTargetable(enemy) &&
           distanceToSegment(enemy.position, start, end) <= this.content.sword.lungeRadius
         ) {
           this.damageEnemy(enemy, this.content.sword.lungeDamage);
-          this.wakeNearbyEnemies(enemy.position, 150);
+          wakeNearbyEnemies(this.enemies, enemy.position, this.content.sword.lungeWakeRadius);
         }
       }
       this.player.swordCooldownRemainingMs = this.player.swordCooldownMs;
@@ -483,10 +373,11 @@ export class GameSimulation {
     if (this.player.swordAutoCooldownRemainingMs > 0) {
       return;
     }
-    const target = this.findNearestEnemy(
+    const target = findNearestEnemy(
+      this.enemies,
       this.player.position,
       this.player.swordAutoRange,
-      (enemy) => this.isEnemyTargetable(enemy),
+      isEnemyTargetable,
     );
     if (target === undefined) {
       return;
@@ -496,155 +387,8 @@ export class GameSimulation {
       position: target.position,
     });
     this.damageEnemy(target, this.player.swordAutoDamage);
-    this.wakeNearbyEnemies(target.position, 140);
+    wakeNearbyEnemies(this.enemies, target.position, this.content.sword.automaticAttackWakeRadius);
     this.player.swordAutoCooldownRemainingMs = this.player.swordAutoCooldownMs;
-  }
-
-  private updateDefenses(): void {
-    for (const defense of this.defenses) {
-      if (!defense.built || defense.cooldownRemainingMs > 0) {
-        continue;
-      }
-      const target = this.findNearestEnemy(
-        defense.position,
-        this.content.defense.range,
-        (enemy) => enemy.hp > 0 && enemy.awake && enemy.kind !== 'guardian',
-      );
-      if (target === undefined) {
-        continue;
-      }
-      this.addEvent('defense-fired', 'Une baliste tire.', {
-        origin: defense.position,
-        position: target.position,
-      });
-      this.damageEnemy(target, this.content.defense.damage);
-      defense.cooldownRemainingMs = this.content.defense.cooldownMs;
-    }
-  }
-
-  private updateEnemies(deltaMs: number, deltaSeconds: number): void {
-    for (const enemy of this.enemies) {
-      if (enemy.hp <= 0) {
-        continue;
-      }
-      enemy.attackCooldownRemainingMs = Math.max(0, enemy.attackCooldownRemainingMs - deltaMs);
-      if (enemy.kind === 'guardian') {
-        this.updateGuardian(enemy, deltaSeconds);
-      } else if (this.phase === 'day') {
-        this.updateDayEnemy(enemy, deltaSeconds);
-      } else {
-        this.updateAssaultEnemy(enemy, deltaSeconds);
-      }
-    }
-  }
-
-  private updateGuardian(enemy: MutableEnemy, deltaSeconds: number): void {
-    const playerDistance = distance(enemy.position, this.player.position);
-    const homeDistance = distance(enemy.position, enemy.home);
-    if (playerDistance <= PLAYER_AGGRO_RANGE || (enemy.awake && playerDistance <= 320)) {
-      enemy.awake = true;
-      this.moveOrAttackPlayer(enemy, deltaSeconds);
-      return;
-    }
-    if (homeDistance > 4) {
-      const definition = this.content.enemies.guardian;
-      enemy.position = moveTowards(enemy.position, enemy.home, definition.speed * deltaSeconds);
-    } else {
-      enemy.awake = false;
-    }
-  }
-
-  private updateDayEnemy(enemy: MutableEnemy, deltaSeconds: number): void {
-    const playerDistance = distance(enemy.position, this.player.position);
-    if (playerDistance <= 145 || (enemy.awake && playerDistance <= 340)) {
-      enemy.awake = true;
-      this.moveOrAttackPlayer(enemy, deltaSeconds);
-      return;
-    }
-    if (distance(enemy.position, enemy.home) > 6) {
-      const definition = this.content.enemies[enemy.kind];
-      enemy.position = moveTowards(enemy.position, enemy.home, definition.speed * deltaSeconds);
-    } else {
-      enemy.awake = false;
-    }
-  }
-
-  private updateAssaultEnemy(enemy: MutableEnemy, deltaSeconds: number): void {
-    enemy.awake = true;
-    if (distance(enemy.position, this.player.position) <= 115) {
-      this.moveOrAttackPlayer(enemy, deltaSeconds);
-      return;
-    }
-
-    const nearbyDefense = this.findNearestDefense(enemy.position, 205);
-    if (nearbyDefense !== undefined) {
-      this.moveOrAttackDefense(enemy, nearbyDefense, deltaSeconds);
-      return;
-    }
-    this.moveOrAttackVillage(enemy, deltaSeconds);
-  }
-
-  private moveOrAttackPlayer(enemy: MutableEnemy, deltaSeconds: number): void {
-    const definition = this.content.enemies[enemy.kind];
-    if (distance(enemy.position, this.player.position) <= definition.attackRange + ENEMY_RADIUS) {
-      if (enemy.attackCooldownRemainingMs <= 0) {
-        this.applyDamageToPlayer(definition.damage, enemy.position);
-        enemy.attackCooldownRemainingMs = definition.attackCooldownMs;
-      }
-      return;
-    }
-    enemy.position = moveTowards(
-      enemy.position,
-      this.player.position,
-      definition.speed * deltaSeconds,
-    );
-  }
-
-  private moveOrAttackDefense(
-    enemy: MutableEnemy,
-    defense: MutableDefense,
-    deltaSeconds: number,
-  ): void {
-    const definition = this.content.enemies[enemy.kind];
-    if (distance(enemy.position, defense.position) <= definition.attackRange + 24) {
-      if (enemy.attackCooldownRemainingMs <= 0) {
-        defense.hp = Math.max(0, defense.hp - definition.damage);
-        enemy.attackCooldownRemainingMs = definition.attackCooldownMs;
-        if (defense.hp <= 0) {
-          this.destroyDefense(defense);
-        }
-      }
-      return;
-    }
-    enemy.position = moveTowards(enemy.position, defense.position, definition.speed * deltaSeconds);
-  }
-
-  private moveOrAttackVillage(enemy: MutableEnemy, deltaSeconds: number): void {
-    const definition = this.content.enemies[enemy.kind];
-    if (distance(enemy.position, this.village.position) <= definition.attackRange + 48) {
-      if (enemy.attackCooldownRemainingMs <= 0) {
-        let damage = definition.damage;
-        if (
-          this.player.barrierActiveRemainingMs > 0 &&
-          distance(this.player.position, this.village.position) <= this.content.barrier.activeRadius
-        ) {
-          damage *= 1 - this.content.barrier.damageReduction;
-        }
-        this.village.hp = Math.max(0, this.village.hp - damage);
-        this.village.underAttack = true;
-        enemy.attackCooldownRemainingMs = definition.attackCooldownMs;
-        this.addEvent('village-hurt', `Le village subit ${Math.ceil(damage)} dégâts.`, {
-          position: this.village.position,
-          amount: damage,
-        });
-      }
-      return;
-    }
-    enemy.position = moveTowards(
-      enemy.position,
-      this.village.position,
-      definition.speed * deltaSeconds,
-    );
   }
 
   private applyDamageToPlayer(amount: number, attackerPosition: Vector2): void {
@@ -695,7 +439,9 @@ export class GameSimulation {
 
   private updateVillageSupport(deltaSeconds: number): void {
     if (this.phase === 'day' && this.village.heartLevel >= 2 && this.isPlayerInsideVillage()) {
-      const multiplier = this.village.underAttack ? 0.25 : 1;
+      const multiplier = this.village.underAttack
+        ? this.content.village.underAttackRegenMultiplier
+        : 1;
       this.player.hp = Math.min(
         this.player.maxHp,
         this.player.hp + this.content.village.dayRegenPerSecond * multiplier * deltaSeconds,
@@ -733,13 +479,14 @@ export class GameSimulation {
       this.depositCarriedResources();
       return;
     }
-    const nearbyDefense = this.findNearestDefense(
+    const nearbyDefense = findNearestDefense(
+      this.defenses,
       this.player.position,
       this.content.player.interactionRange,
       true,
     );
     if (nearbyDefense !== undefined) {
-      this.repairDefense(nearbyDefense);
+      repairDefense(nearbyDefense, this.player, this.content.defense);
       return;
     }
     if (
@@ -754,7 +501,11 @@ export class GameSimulation {
       return;
     }
     const freeCapacity = this.player.carryCapacity - this.player.carriedWood;
-    const amount = Math.min(4, resource.amountRemaining, freeCapacity);
+    const amount = Math.min(
+      this.content.world.woodCollectedPerInteraction,
+      resource.amountRemaining,
+      freeCapacity,
+    );
     if (amount <= 0) {
       return;
     }
@@ -766,31 +517,20 @@ export class GameSimulation {
     });
   }
 
-  private repairDefense(defense: MutableDefense): void {
-    if (defense.built && defense.hp < defense.maxHp && this.player.storedWood >= 1) {
-      this.player.storedWood -= 1;
-      defense.hp = Math.min(defense.maxHp, defense.hp + 45);
-    }
-  }
-
   private startDefenseConstruction(): void {
     if (
       this.activeConstructionId !== undefined ||
-      !this.canPlaceDefenseAt(this.player.position) ||
+      !canPlaceDefenseAt(this.player.position, this.village, this.defenses, this.content) ||
       this.player.storedWood < this.content.defense.buildCost
     ) {
       return;
     }
     this.defenseCounter += 1;
-    const defense: MutableDefense = {
-      id: `defense-${this.defenseCounter}`,
-      position: { ...this.player.position },
-      built: false,
-      hp: this.content.defense.maxHp,
-      maxHp: this.content.defense.maxHp,
-      cooldownRemainingMs: 0,
-      buildRemainingMs: this.content.defense.buildDurationMs,
-    };
+    const defense = createDefense(
+      `defense-${this.defenseCounter}`,
+      this.player.position,
+      this.content.defense,
+    );
     this.player.storedWood -= this.content.defense.buildCost;
     this.defenses.push(defense);
     this.activeConstructionId = defense.id;
@@ -852,19 +592,6 @@ export class GameSimulation {
     }
   }
 
-  private canPlaceDefenseAt(position: Vector2): boolean {
-    const heartDistance = distance(position, this.village.position);
-    if (
-      heartDistance < this.content.defense.minimumHeartDistance ||
-      heartDistance > this.content.village.areaRadius - 28
-    ) {
-      return false;
-    }
-    return this.defenses.every(
-      (defense) => distance(position, defense.position) >= this.content.defense.minimumSpacing,
-    );
-  }
-
   private upgradeVillageHeart(): void {
     if (this.village.heartLevel === 1) {
       if (this.player.storedWood < this.content.village.levelTwoCost) {
@@ -880,7 +607,7 @@ export class GameSimulation {
     if (
       this.village.heartLevel === 2 &&
       this.hasOperationalDefense() &&
-      this.player.level >= 2 &&
+      this.player.level >= this.content.village.ultimateMinimumPlayerLevel &&
       this.player.storedWood >= this.content.village.ultimateCost
     ) {
       this.player.storedWood -= this.content.village.ultimateCost;
@@ -904,10 +631,14 @@ export class GameSimulation {
     this.player.experience -= this.player.experienceToNext;
     this.player.level += 1;
     this.player.experienceToNext =
-      this.content.progression.experiencePerLevel[this.player.level - 1] ?? 999;
-    this.upgradeChoices = this.content.upgrades
-      .filter((upgrade) => !this.player.selectedUpgrades.includes(upgrade.id))
-      .slice(0, 3);
+      this.content.progression.experiencePerLevel[this.player.level - 1] ??
+      this.content.progression.fallbackExperienceToNext;
+    this.upgradeChoices = selectWeightedUpgrades(
+      this.content.upgrades,
+      this.player.selectedUpgrades,
+      this.content.progression.upgradeChoiceCount,
+      this.upgradeRandom,
+    );
     this.addEvent('level-up', `Niveau ${this.player.level} atteint.`, {
       position: this.player.position,
     });
@@ -971,16 +702,8 @@ export class GameSimulation {
   private beginNight(): void {
     this.phase = 'night';
     this.phaseRemainingMs = this.content.simulation.nightDurationMs;
-    for (const enemy of this.enemies) {
-      if (enemy.kind !== 'guardian') {
-        enemy.awake = true;
-      }
-    }
-    const raiderCount = 3 + this.cycle * 2;
-    for (let index = 0; index < raiderCount; index += 1) {
-      const position = this.randomRingPosition(850, 1_020);
-      this.createEnemy('raider', position, position, true);
-    }
+    awakenAssailants(this.enemies);
+    this.spawnInstructions(nightSpawnInstructions(this.content, this.cycle), true);
     this.addEvent('phase-changed', `Nuit ${this.cycle} : défendez le village.`);
   }
 
@@ -988,38 +711,29 @@ export class GameSimulation {
     this.phase = 'day';
     this.cycle += 1;
     this.phaseRemainingMs = this.content.simulation.dayDurationMs;
-    for (const enemy of this.enemies) {
-      if (enemy.kind !== 'guardian') {
-        enemy.kind = 'sleeper';
-        enemy.awake = false;
-        enemy.home = { ...enemy.position };
-      }
-    }
-    const reinforcementCount = Math.min(7, 2 + this.cycle * 2);
-    for (let index = 0; index < reinforcementCount; index += 1) {
-      const position = this.randomRingPosition(620, 980);
-      this.createEnemy('sleeper', position, position, false);
-    }
+    restSurvivingAssailants(this.enemies);
+    this.spawnInstructions(dayReinforcementInstructions(this.content, this.cycle), false);
     this.addEvent('phase-changed', `Jour ${this.cycle} : explorez et préparez-vous.`);
   }
 
   private beginFinalWave(): void {
     this.phase = 'final';
     this.phaseRemainingMs = this.content.simulation.finalDurationMs;
-    for (const enemy of this.enemies) {
-      if (enemy.kind !== 'guardian') {
-        enemy.awake = true;
+    awakenAssailants(this.enemies);
+    this.spawnInstructions(finalSpawnInstructions(this.content), true);
+    this.addEvent('phase-changed', 'Activation finale : tenez bon !');
+  }
+
+  private spawnInstructions(instructions: readonly SpawnInstruction[], awake: boolean): void {
+    for (const instruction of instructions) {
+      for (let index = 0; index < instruction.count; index += 1) {
+        const position = this.randomRingPosition(
+          instruction.ring.minimumRadius,
+          instruction.ring.maximumRadius,
+        );
+        this.createEnemy(instruction.kind, position, position, awake);
       }
     }
-    for (let index = 0; index < 14; index += 1) {
-      const position = this.randomRingPosition(860, 1_020);
-      this.createEnemy('raider', position, position, true);
-    }
-    for (let index = 0; index < 4; index += 1) {
-      const position = this.randomRingPosition(900, 1_040);
-      this.createEnemy('brute', position, position, true);
-    }
-    this.addEvent('phase-changed', 'Activation finale : tenez bon !');
   }
 
   private checkDefeat(): void {
@@ -1045,62 +759,8 @@ export class GameSimulation {
     }
   }
 
-  private findNearestEnemy(
-    origin: Vector2,
-    maximumDistance: number,
-    predicate: (enemy: MutableEnemy) => boolean,
-  ): MutableEnemy | undefined {
-    const maximumDistanceSquared = maximumDistance * maximumDistance;
-    let nearest: MutableEnemy | undefined;
-    let nearestDistance = maximumDistanceSquared;
-    for (const enemy of this.enemies) {
-      if (!predicate(enemy)) {
-        continue;
-      }
-      const candidateDistance = distanceSquared(origin, enemy.position);
-      if (candidateDistance <= nearestDistance) {
-        nearest = enemy;
-        nearestDistance = candidateDistance;
-      }
-    }
-    return nearest;
-  }
-
-  private findNearestDefense(
-    origin: Vector2,
-    maximumDistance: number,
-    builtOnly = false,
-  ): MutableDefense | undefined {
-    let nearest: MutableDefense | undefined;
-    let nearestDistance = maximumDistance * maximumDistance;
-    for (const defense of this.defenses) {
-      if (builtOnly && !defense.built) {
-        continue;
-      }
-      const candidateDistance = distanceSquared(origin, defense.position);
-      if (candidateDistance <= nearestDistance) {
-        nearest = defense;
-        nearestDistance = candidateDistance;
-      }
-    }
-    return nearest;
-  }
-
   private hasOperationalDefense(): boolean {
     return this.defenses.some((defense) => defense.built);
-  }
-
-  private isEnemyTargetable(enemy: MutableEnemy): boolean {
-    return enemy.hp > 0 && (enemy.awake || enemy.kind === 'guardian');
-  }
-
-  private wakeNearbyEnemies(position: Vector2, radius: number): void {
-    const radiusSquared = radius * radius;
-    for (const enemy of this.enemies) {
-      if (enemy.kind !== 'guardian' && distanceSquared(position, enemy.position) <= radiusSquared) {
-        enemy.awake = true;
-      }
-    }
   }
 
   private isGuardianAlive(guardianId: string): boolean {
@@ -1142,14 +802,15 @@ export class GameSimulation {
     if (activeConstruction !== undefined) {
       return `Fabrication en cours — ${(activeConstruction.buildRemainingMs / 1_000).toFixed(1)} s · tout dégât interrompt`;
     }
-    const nearbyDefense = this.findNearestDefense(
+    const nearbyDefense = findNearestDefense(
+      this.defenses,
       this.player.position,
       this.content.player.interactionRange,
       true,
     );
     if (nearbyDefense !== undefined) {
       if (nearbyDefense.hp < nearbyDefense.maxHp) {
-        return 'E — Réparer la baliste (1 bois)';
+        return `E — Réparer la baliste (${this.content.defense.repairCost} bois)`;
       }
       return 'La baliste est opérationnelle.';
     }
@@ -1163,15 +824,15 @@ export class GameSimulation {
         if (!this.hasOperationalDefense()) {
           return "Fabriquez d'abord une baliste avec B.";
         }
-        if (this.player.level < 2) {
-          return "Atteignez d'abord le niveau 2.";
+        if (this.player.level < this.content.village.ultimateMinimumPlayerLevel) {
+          return `Atteignez d'abord le niveau ${this.content.village.ultimateMinimumPlayerLevel}.`;
         }
         return `E — Lancer l'activation finale (${this.content.village.ultimateCost} bois)`;
       }
       return 'Le Cœur est en cours d’activation.';
     }
     if (this.isPlayerInsideVillage()) {
-      if (!this.canPlaceDefenseAt(this.player.position)) {
+      if (!canPlaceDefenseAt(this.player.position, this.village, this.defenses, this.content)) {
         return 'B — Éloignez-vous du Cœur et des autres balistes.';
       }
       return this.player.storedWood >= this.content.defense.buildCost
@@ -1200,8 +861,8 @@ export class GameSimulation {
     if (this.village.heartLevel === 1) {
       return `Rapportez ${this.content.village.levelTwoCost} bois pour éveiller le Foyer.`;
     }
-    if (this.player.level < 2) {
-      return 'Combattez pour atteindre le niveau 2.';
+    if (this.player.level < this.content.village.ultimateMinimumPlayerLevel) {
+      return `Combattez pour atteindre le niveau ${this.content.village.ultimateMinimumPlayerLevel}.`;
     }
     if (this.player.storedWood < this.content.village.ultimateCost) {
       return `Réunissez ${this.content.village.ultimateCost} bois dans votre stock.`;

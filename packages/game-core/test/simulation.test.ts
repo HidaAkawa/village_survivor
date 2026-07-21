@@ -22,7 +22,7 @@ function finishConstruction(simulation: GameSimulation, sequence: number): numbe
 }
 
 function clearGuardians(simulation: GameSimulation): void {
-  for (const resource of simulation.getState().resources) {
+  for (const resource of simulation.createSnapshot().resources) {
     simulation.defeatEnemy(resource.guardianId);
   }
 }
@@ -43,14 +43,16 @@ describe('GameSimulation', () => {
         activateBarrier: tick % 240 === 0,
         activateSword: tick % 100 === 0,
       });
-      expect(first.step(currentInput)).toEqual(second.step(currentInput));
+      first.step(currentInput);
+      second.step(currentInput);
+      expect(first.createSnapshot()).toEqual(second.createSnapshot());
     }
   });
 
   it('uses the seed to produce different maps', () => {
     const first = new GameSimulation(defaultContent, 'map-a');
     const second = new GameSimulation(defaultContent, 'map-b');
-    expect(first.getState().resources).not.toEqual(second.getState().resources);
+    expect(first.createSnapshot().resources).not.toEqual(second.createSnapshot().resources);
   });
 
   it('moves from day to night at a fixed number of ticks', () => {
@@ -60,8 +62,8 @@ describe('GameSimulation', () => {
     for (let tick = 0; tick < dayTicks; tick += 1) {
       simulation.step(input(tick));
     }
-    expect(simulation.getState().phase).toBe('night');
-    expect(simulation.getState().cycle).toBe(1);
+    expect(simulation.createSnapshot().phase).toBe('night');
+    expect(simulation.createSnapshot().cycle).toBe(1);
   });
 
   it('supports the complete explore, build, defend and win loop', () => {
@@ -70,7 +72,7 @@ describe('GameSimulation', () => {
     let sequence = 0;
 
     const collectAndDeposit = (resourceIndex: number): void => {
-      const state = simulation.getState();
+      const state = simulation.createSnapshot();
       const resource = state.resources[resourceIndex]!;
       simulation.defeatEnemy(resource.guardianId);
       simulation.teleportPlayer(resource.position);
@@ -78,7 +80,7 @@ describe('GameSimulation', () => {
       simulation.step(input(sequence++, { interact: true }));
       simulation.teleportPlayer(state.village.position);
       simulation.step(input(sequence++, { interact: true }));
-      const choice = simulation.getState().upgradeChoices[0];
+      const choice = simulation.createSnapshot().upgradeChoices[0];
       if (choice !== undefined) {
         simulation.step(input(sequence++, { selectUpgradeId: choice.id }));
       }
@@ -88,44 +90,46 @@ describe('GameSimulation', () => {
     simulation.teleportPlayer({ x: 140, y: 0 });
     simulation.step(input(sequence++, { buildDefense: true }));
     sequence = finishConstruction(simulation, sequence);
-    expect(simulation.getState().defenses[0]?.built).toBe(true);
+    expect(simulation.createSnapshot().defenses[0]?.built).toBe(true);
 
     collectAndDeposit(1);
-    simulation.teleportPlayer(simulation.getState().village.position);
+    simulation.teleportPlayer(simulation.createSnapshot().village.position);
     simulation.step(input(sequence++, { interact: true }));
-    expect(simulation.getState().village.heartLevel).toBe(2);
-    expect(simulation.getState().player.level).toBeGreaterThanOrEqual(2);
+    expect(simulation.createSnapshot().village.heartLevel).toBe(2);
+    expect(simulation.createSnapshot().player.level).toBeGreaterThanOrEqual(2);
 
     collectAndDeposit(2);
     collectAndDeposit(3);
-    simulation.teleportPlayer(simulation.getState().village.position);
+    simulation.teleportPlayer(simulation.createSnapshot().village.position);
     simulation.step(input(sequence++, { interact: true }));
-    expect(simulation.getState().phase).toBe('final');
-    expect(simulation.getState().village.heartLevel).toBe(3);
+    expect(simulation.createSnapshot().phase).toBe('final');
+    expect(simulation.createSnapshot().village.heartLevel).toBe(3);
 
     simulation.defeatAllAssailants();
     const finalTicks = defaultContent.simulation.finalDurationMs / defaultContent.simulation.tickMs;
     for (let tick = 0; tick < finalTicks; tick += 1) {
       simulation.step(input(sequence++));
     }
-    expect(simulation.getState().status).toBe('victory');
+    expect(simulation.createSnapshot().status).toBe('victory');
   });
 
   it('requires an interaction to deposit carried resources inside the village', () => {
     const simulation = new GameSimulation(defaultContent, 'manual-deposit');
     simulation.start();
-    const resource = simulation.getState().resources[0]!;
+    const resource = simulation.createSnapshot().resources[0]!;
     simulation.defeatEnemy(resource.guardianId);
     simulation.teleportPlayer(resource.position);
     simulation.step(input(1, { interact: true }));
 
-    simulation.teleportPlayer(simulation.getState().village.position);
-    let state = simulation.step(input(2));
+    simulation.teleportPlayer(simulation.createSnapshot().village.position);
+    simulation.step(input(2));
+    let state = simulation.createSnapshot();
     expect(state.player.carriedWood).toBe(4);
     expect(state.player.storedWood).toBe(0);
     expect(state.interactionHint).toMatch(/E — Déposer 4 bois/);
 
-    state = simulation.step(input(3, { interact: true }));
+    simulation.step(input(3, { interact: true }));
+    state = simulation.createSnapshot();
     expect(state.player.carriedWood).toBe(0);
     expect(state.player.storedWood).toBe(4);
     expect(state.events.some((event) => event.type === 'resource-deposited')).toBe(true);
@@ -139,13 +143,14 @@ describe('GameSimulation', () => {
     simulation.teleportPlayer({ x: 140, y: 0 });
     simulation.step(input(1, { buildDefense: true }));
     finishConstruction(simulation, 2);
-    const defense = simulation.getState().defenses[0]!;
+    const defense = simulation.createSnapshot().defenses[0]!;
     simulation.spawnEnemy('raider', {
       x: defense.position.x + 100,
       y: defense.position.y,
     });
 
-    const state = simulation.step(input(200));
+    simulation.step(input(200));
+    const state = simulation.createSnapshot();
     const shot = state.events.find((event) => event.type === 'defense-fired');
     expect(shot?.origin).toEqual(defense.position);
     expect(shot?.position).toBeDefined();
@@ -165,7 +170,7 @@ describe('GameSimulation', () => {
     simulation.step(input(sequence++, { buildDefense: true }));
     finishConstruction(simulation, sequence);
 
-    const defenses = simulation.getState().defenses;
+    const defenses = simulation.createSnapshot().defenses;
     expect(defenses).toHaveLength(2);
     expect(defenses.every((defense) => defense.built)).toBe(true);
     expect(defenses.map((defense) => defense.position)).toEqual([
@@ -185,7 +190,7 @@ describe('GameSimulation', () => {
 
     simulation.damagePlayer(1);
 
-    const state = simulation.getState();
+    const state = simulation.createSnapshot();
     expect(state.defenses).toHaveLength(0);
     expect(state.player.storedWood).toBe(defaultContent.defense.buildCost);
     expect(state.events.some((event) => event.type === 'defense-construction-interrupted')).toBe(
@@ -198,20 +203,81 @@ describe('GameSimulation', () => {
     simulation.start();
     simulation.skipToNight();
 
-    const assailants = simulation.getState().enemies.filter((enemy) => enemy.kind !== 'guardian');
+    const assailants = simulation
+      .createSnapshot()
+      .enemies.filter((enemy) => enemy.kind !== 'guardian');
     expect(assailants).toHaveLength(14);
     expect(assailants.filter((enemy) => enemy.kind === 'raider')).toHaveLength(5);
+  });
+
+  it('preserves the identity and attributes of enemies surviving the night', () => {
+    const content = {
+      ...defaultContent,
+      simulation: {
+        ...defaultContent.simulation,
+        nightDurationMs: defaultContent.simulation.tickMs,
+      },
+      progression: {
+        ...defaultContent.progression,
+        experiencePerLevel: [1_000],
+      },
+    };
+    const simulation = new GameSimulation(content, 'persistent-survivors');
+    simulation.start();
+    simulation.skipToNight();
+    const bruteId = simulation.spawnEnemy('brute', { x: 1_000, y: 1_000 });
+
+    simulation.step(input(1));
+    let brute = simulation.createSnapshot().enemies.find((enemy) => enemy.id === bruteId);
+    expect(brute).toMatchObject({
+      kind: 'brute',
+      hp: defaultContent.enemies.brute.maxHp,
+      maxHp: defaultContent.enemies.brute.maxHp,
+      awake: false,
+    });
+
+    simulation.skipToNight();
+    brute = simulation.createSnapshot().enemies.find((enemy) => enemy.id === bruteId);
+    expect(brute).toMatchObject({ kind: 'brute', awake: true });
+
+    simulation.defeatEnemy(bruteId);
+    expect(simulation.createSnapshot().player.experience).toBe(
+      defaultContent.enemies.brute.experience,
+    );
+  });
+
+  it('offers varied upgrades reproducibly from an independent seeded stream', () => {
+    const choicesFor = (seed: string, consumeWorldRandom = false): readonly string[] => {
+      const simulation = new GameSimulation(defaultContent, seed);
+      simulation.start();
+      if (consumeWorldRandom) {
+        for (let index = 0; index < 5; index += 1) {
+          simulation.spawnEnemy();
+        }
+      }
+      simulation.giveExperience(defaultContent.progression.experiencePerLevel[0]!);
+      return simulation.createSnapshot().upgradeChoices.map((choice) => choice.id);
+    };
+
+    expect(choicesFor('upgrade-seed')).toEqual(choicesFor('upgrade-seed'));
+    expect(choicesFor('upgrade-seed', true)).toEqual(choicesFor('upgrade-seed'));
+
+    const distinctOffers = new Set(
+      Array.from({ length: 8 }, (_, index) => choicesFor(`upgrade-seed-${index}`).join(',')),
+    );
+    expect(distinctOffers.size).toBeGreaterThan(1);
   });
 
   it('publishes a directional event for the automatic sword attack', () => {
     const simulation = new GameSimulation(defaultContent, 'sword-animation');
     simulation.start();
-    const player = simulation.getState().player.position;
+    const player = simulation.createSnapshot().player.position;
     simulation.spawnEnemy('guardian', { x: player.x + 70, y: player.y });
 
-    let state = simulation.getState();
+    let state = simulation.createSnapshot();
     for (let tick = 1; tick <= 15; tick += 1) {
-      state = simulation.step(input(tick));
+      simulation.step(input(tick));
+      state = simulation.createSnapshot();
     }
 
     const slash = state.events.find((event) => event.type === 'sword-auto-attack');
@@ -223,7 +289,7 @@ describe('GameSimulation', () => {
     const simulation = new GameSimulation(defaultContent, 'defeat');
     simulation.start();
     simulation.damagePlayer(defaultContent.player.maxHp * 2);
-    expect(simulation.getState().status).toBe('defeat');
-    expect(simulation.getState().resultReason).toMatch(/personnage/i);
+    expect(simulation.createSnapshot().status).toBe('defeat');
+    expect(simulation.createSnapshot().resultReason).toMatch(/personnage/i);
   });
 });

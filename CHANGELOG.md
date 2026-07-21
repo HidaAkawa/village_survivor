@@ -44,6 +44,16 @@ sémantique n'est encore appliquée, car aucune version jouable n'a été publi�
   dangereux et une survie moins permissive dès la première nuit ;
 - l'attaque automatique de l'Épée produit un arc de lame orienté vers sa cible ;
 - le sol diurne utilise une teinte très claire avec des contrastes adaptés ;
+- les paramètres de génération, détection, réparation et vagues sont regroupés dans le
+  catalogue TypeScript validé de `packages/content` ;
+- les trois améliorations sont tirées sans remise selon des poids, avec un flux
+  aléatoire déterministe indépendant de la génération du monde ;
+- les ennemis survivant à la nuit conservent leur type, leurs caractéristiques et leur
+  récompense lorsqu'ils retournent dormir ;
+- la simulation avance désormais sans produire automatiquement un instantané ; la
+  session locale ne crée l'état public qu'au moment de le publier ;
+- le mouvement, le combat, la construction, les phases, le ciblage et la projection
+  d'état sont séparés de l'orchestrateur `GameSimulation` ;
 
 ### Sécurité
 

@@ -1,7 +1,19 @@
 import { z } from 'zod';
 
+import { rawDefaultContent } from './default-content.js';
+
 const positiveNumber = z.number().finite().positive();
 const nonNegativeNumber = z.number().finite().nonnegative();
+
+const ringSchema = z
+  .object({
+    minimumRadius: positiveNumber,
+    maximumRadius: positiveNumber,
+  })
+  .refine((ring) => ring.minimumRadius < ring.maximumRadius, {
+    message: 'minimumRadius doit être inférieur à maximumRadius',
+    path: ['minimumRadius'],
+  });
 
 const enemySchema = z.object({
   maxHp: positiveNumber,
@@ -26,6 +38,7 @@ const upgradeSchema = z.object({
     'barrier-duration',
   ]),
   value: positiveNumber,
+  weight: positiveNumber,
 });
 
 export const gameContentSchema = z
@@ -42,7 +55,15 @@ export const gameContentSchema = z
       height: z.number().int().min(1000),
       resourceNodeCount: z.number().int().min(1).max(12),
       woodPerNode: z.number().int().min(1),
+      woodCollectedPerInteraction: z.number().int().min(1),
       initialSleeperCount: z.number().int().min(1).max(50),
+      playerStartOffsetY: nonNegativeNumber,
+      resourceRingStartRadius: positiveNumber,
+      resourceRingStepRadius: positiveNumber,
+      resourceAngleJitterRadians: nonNegativeNumber,
+      guardianOffset: positiveNumber,
+      initialSleeperRing: ringSchema,
+      debugEnemySpawnRing: ringSchema,
     }),
     player: z.object({
       maxHp: positiveNumber,
@@ -58,6 +79,8 @@ export const gameContentSchema = z
       lungeDistance: positiveNumber,
       lungeRadius: positiveNumber,
       lungeCooldownMs: positiveNumber,
+      lungeWakeRadius: positiveNumber,
+      automaticAttackWakeRadius: positiveNumber,
     }),
     barrier: z.object({
       maxWard: positiveNumber,
@@ -71,8 +94,10 @@ export const gameContentSchema = z
       maxHp: positiveNumber,
       areaRadius: positiveNumber,
       dayRegenPerSecond: nonNegativeNumber,
+      underAttackRegenMultiplier: z.number().finite().min(0).max(1),
       levelTwoCost: z.number().int().min(1),
       ultimateCost: z.number().int().min(1),
+      ultimateMinimumPlayerLevel: z.number().int().min(1),
     }),
     defense: z.object({
       buildCost: z.number().int().min(1),
@@ -83,15 +108,52 @@ export const gameContentSchema = z
       damage: positiveNumber,
       range: positiveNumber,
       cooldownMs: positiveNumber,
+      repairCost: z.number().int().min(1),
+      repairAmount: positiveNumber,
+      placementOuterMargin: nonNegativeNumber,
     }),
     progression: z.object({
       experiencePerLevel: z.array(z.number().int().positive()).min(1),
+      fallbackExperienceToNext: z.number().int().positive(),
+      upgradeChoiceCount: z.number().int().min(1),
     }),
     enemies: z.object({
       guardian: enemySchema,
       sleeper: enemySchema,
       raider: enemySchema,
       brute: enemySchema,
+    }),
+    enemyBehavior: z.object({
+      collisionRadius: positiveNumber,
+      guardianAggroRange: positiveNumber,
+      guardianChaseRange: positiveNumber,
+      guardianReturnTolerance: nonNegativeNumber,
+      dayAggroRange: positiveNumber,
+      dayChaseRange: positiveNumber,
+      dayReturnTolerance: nonNegativeNumber,
+      assaultPlayerPriorityRange: positiveNumber,
+      assaultDefenseDetectionRange: positiveNumber,
+      defenseContactPadding: nonNegativeNumber,
+      villageContactPadding: nonNegativeNumber,
+    }),
+    waves: z.object({
+      night: z.object({
+        baseRaiderCount: z.number().int().nonnegative(),
+        raidersPerCycle: z.number().int().nonnegative(),
+        spawnRing: ringSchema,
+      }),
+      dayReinforcements: z.object({
+        baseCount: z.number().int().nonnegative(),
+        countPerCycle: z.number().int().nonnegative(),
+        maximumCount: z.number().int().nonnegative(),
+        spawnRing: ringSchema,
+      }),
+      final: z.object({
+        raiderCount: z.number().int().nonnegative(),
+        raiderSpawnRing: ringSchema,
+        bruteCount: z.number().int().nonnegative(),
+        bruteSpawnRing: ringSchema,
+      }),
     }),
     upgrades: z.array(upgradeSchema).min(3),
   })
@@ -107,164 +169,30 @@ export const gameContentSchema = z
       }
       ids.add(upgrade.id);
     }
+    if (content.progression.upgradeChoiceCount > content.upgrades.length) {
+      context.addIssue({
+        code: 'custom',
+        path: ['progression', 'upgradeChoiceCount'],
+        message: "ne peut pas dépasser le nombre d'améliorations disponibles",
+      });
+    }
   });
 
 export type GameContent = z.infer<typeof gameContentSchema>;
 export type UpgradeDefinition = GameContent['upgrades'][number];
 
-const rawDefaultContent = {
-  version: 1,
-  simulation: {
-    tickMs: 50,
-    dayDurationMs: 75_000,
-    nightDurationMs: 75_000,
-    finalDurationMs: 90_000,
-  },
-  world: {
-    width: 2_200,
-    height: 2_200,
-    resourceNodeCount: 4,
-    woodPerNode: 10,
-    initialSleeperCount: 9,
-  },
-  player: {
-    maxHp: 85,
-    moveSpeed: 240,
-    carryCapacity: 8,
-    interactionRange: 86,
-  },
-  sword: {
-    autoDamage: 9,
-    autoRange: 105,
-    autoCooldownMs: 750,
-    lungeDamage: 22,
-    lungeDistance: 150,
-    lungeRadius: 72,
-    lungeCooldownMs: 6_000,
-  },
-  barrier: {
-    maxWard: 12,
-    wardRefreshMs: 10_000,
-    activeRadius: 175,
-    activeDurationMs: 3_000,
-    activeCooldownMs: 14_000,
-    damageReduction: 0.65,
-  },
-  village: {
-    maxHp: 320,
-    areaRadius: 230,
-    dayRegenPerSecond: 2,
-    levelTwoCost: 8,
-    ultimateCost: 12,
-  },
-  defense: {
-    buildCost: 6,
-    buildDurationMs: 5_000,
-    minimumHeartDistance: 78,
-    minimumSpacing: 82,
-    maxHp: 130,
-    damage: 11,
-    range: 320,
-    cooldownMs: 900,
-  },
-  progression: {
-    experiencePerLevel: [15, 30, 50],
-  },
-  enemies: {
-    guardian: {
-      maxHp: 50,
-      damage: 10,
-      speed: 78,
-      attackRange: 38,
-      attackCooldownMs: 1_050,
-      experience: 12,
-    },
-    sleeper: {
-      maxHp: 38,
-      damage: 7,
-      speed: 72,
-      attackRange: 36,
-      attackCooldownMs: 1_100,
-      experience: 8,
-    },
-    raider: {
-      maxHp: 46,
-      damage: 9,
-      speed: 86,
-      attackRange: 38,
-      attackCooldownMs: 1_000,
-      experience: 9,
-    },
-    brute: {
-      maxHp: 130,
-      damage: 16,
-      speed: 52,
-      attackRange: 48,
-      attackCooldownMs: 1_350,
-      experience: 22,
-    },
-  },
-  upgrades: [
-    {
-      id: 'sword-sharp-edge',
-      name: 'Tranchant affûté',
-      description: '+35 % de dégâts pour Taillade.',
-      discipline: 'sword',
-      effect: 'sword-damage',
-      value: 1.35,
-    },
-    {
-      id: 'barrier-reinforced-ward',
-      name: 'Égide renforcée',
-      description: '+15 points de garde maximale.',
-      discipline: 'barrier',
-      effect: 'ward-capacity',
-      value: 15,
-    },
-    {
-      id: 'sword-quick-hands',
-      name: 'Gestes vifs',
-      description: 'Taillade se déclenche 20 % plus vite.',
-      discipline: 'sword',
-      effect: 'sword-speed',
-      value: 0.8,
-    },
-    {
-      id: 'barrier-lasting-dome',
-      name: 'Dôme persistant',
-      description: '+1,5 seconde de durée pour Barrière.',
-      discipline: 'barrier',
-      effect: 'barrier-duration',
-      value: 1_500,
-    },
-    {
-      id: 'sword-long-reach',
-      name: 'Allonge',
-      description: '+30 unités de portée pour Taillade.',
-      discipline: 'sword',
-      effect: 'sword-range',
-      value: 30,
-    },
-    {
-      id: 'sword-relentless-lunge',
-      name: 'Fente implacable',
-      description: 'Fente récupère 25 % plus vite.',
-      discipline: 'sword',
-      effect: 'lunge-cooldown',
-      value: 0.75,
-    },
-  ],
-} as const;
-
-export function parseGameContent(input: unknown): GameContent {
+export function parseGameContent(input: unknown, source = 'contenu en mémoire'): GameContent {
   const result = gameContentSchema.safeParse(input);
   if (!result.success) {
     const details = result.error.issues
       .map((issue) => `${issue.path.join('.') || 'racine'}: ${issue.message}`)
       .join('\n');
-    throw new Error(`Contenu de jeu invalide:\n${details}`);
+    throw new Error(`Contenu de jeu invalide (${source}):\n${details}`);
   }
   return result.data;
 }
 
-export const defaultContent: GameContent = parseGameContent(rawDefaultContent);
+export const defaultContent: GameContent = parseGameContent(
+  rawDefaultContent,
+  'packages/content/src/default-content.ts',
+);

@@ -83,7 +83,7 @@ export class LocalSession implements GameSession {
     this.scheduler = options.scheduler ?? browserScheduler;
     this.simulation = new GameSimulation(this.content, options.seed ?? 'm1-default');
     this.debug = {
-      getState: () => this.simulation.getState(),
+      getState: () => this.simulation.createSnapshot(),
       getMetrics: () => ({
         lastTickDurationMs: this.lastTickDurationMs,
         gameSpeed: this.gameSpeed,
@@ -185,7 +185,7 @@ export class LocalSession implements GameSession {
 
   public subscribe(listener: (state: PublicGameState) => void): () => void {
     this.listeners.add(listener);
-    listener(this.simulation.getState());
+    listener(this.simulation.createSnapshot());
     return () => {
       this.listeners.delete(listener);
     };
@@ -223,14 +223,14 @@ export class LocalSession implements GameSession {
       this.lastTickDurationMs = performance.now() - tickStartedAt;
       this.currentInput = persistentInput(this.currentInput);
     }
-    this.publish();
-    return this.simulation.getState();
+    return this.publish();
   }
 
-  private publish(): void {
-    const state = this.simulation.getState();
+  private publish(): PublicGameState {
+    const state = this.simulation.createSnapshot();
     for (const listener of this.listeners) {
       listener(state);
     }
+    return state;
   }
 }
