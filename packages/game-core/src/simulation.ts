@@ -161,6 +161,15 @@ export class GameSimulation {
     this.checkDefeat();
   }
 
+  /**
+   * Événements du tick courant. Le prochain `step()` les remplace : un adaptateur
+   * qui avance plusieurs ticks avant de publier doit les collecter à chaque tick,
+   * sinon seuls ceux du dernier tick lui parviennent.
+   */
+  public getEvents(): readonly GameEvent[] {
+    return this.events;
+  }
+
   public createSnapshot(): PublicGameState {
     const interactionHint = this.getInteractionHint();
     return createPublicGameState({

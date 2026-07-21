@@ -136,10 +136,12 @@ entre toutes les machines possibles.
 2. `LocalSession.start()` initialise la simulation et la boucle à pas fixe.
 3. Les entrées sont normalisées en `PlayerInput` puis envoyées avec `sendInput()`.
 4. La simulation valide les intentions et avance sans allouer d'état public.
-5. La session crée puis publie un `PublicGameState` immuable lorsqu'au moins un tick a
-   été traité.
-6. Phaser rend cet état sans recalculer les règles.
-7. `stop()` libère timers, abonnements et ressources.
+5. La session collecte les événements après chaque tick, car la simulation les remplace
+   au tick suivant.
+6. La session crée puis publie un `PublicGameState` immuable lorsqu'au moins un tick a
+   été traité, en y substituant les événements collectés.
+7. Phaser rend cet état sans recalculer les règles.
+8. `stop()` libère timers, abonnements et ressources.
 
 ## 9. Flux réseau futur
 

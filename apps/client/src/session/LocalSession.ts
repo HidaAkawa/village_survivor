@@ -2,6 +2,7 @@ import { defaultContent, type GameContent } from '@village-survivor/content';
 import { GameSimulation } from '@village-survivor/game-core';
 import type {
   EnemyKind,
+  GameEvent,
   GameSession,
   PlayerInput,
   PublicGameState,
@@ -42,6 +43,13 @@ export interface VillageSurvivorDebug {
   advance(milliseconds: number): PublicGameState;
 }
 
+/**
+ * Plafond du tampon d'événements. Il n'est atteignable qu'après une frame très
+ * longue ou une avance de débogage : on conserve alors les plus récents, pour que
+ * le rendu ne rejoue pas d'un coup plusieurs minutes d'effets.
+ */
+const MAX_PENDING_EVENTS = 240;
+
 const browserScheduler: FrameScheduler = {
   now: () => performance.now(),
   request: (callback) => requestAnimationFrame(callback),
@@ -75,6 +83,7 @@ export class LocalSession implements GameSession {
   private accumulatorMs = 0;
   private gameSpeed = 1;
   private lastTickDurationMs = 0;
+  private pendingEvents: GameEvent[] = [];
 
   public readonly debug: VillageSurvivorDebug;
 
@@ -204,6 +213,7 @@ export class LocalSession implements GameSession {
         const tickStartedAt = performance.now();
         this.simulation.step(this.currentInput);
         this.lastTickDurationMs = performance.now() - tickStartedAt;
+        this.queueEvents();
         this.currentInput = persistentInput(this.currentInput);
         this.accumulatorMs -= this.content.simulation.tickMs;
         processedTicks += 1;
@@ -221,13 +231,34 @@ export class LocalSession implements GameSession {
       const tickStartedAt = performance.now();
       this.simulation.step(this.currentInput);
       this.lastTickDurationMs = performance.now() - tickStartedAt;
+      this.queueEvents();
       this.currentInput = persistentInput(this.currentInput);
     }
     return this.publish();
   }
 
+  /**
+   * La simulation remplace ses événements à chaque tick alors que la session ne
+   * publie qu'une fois par frame : sans cette collecte, une frame traitant
+   * plusieurs ticks ne livrerait que les événements du dernier.
+   */
+  private queueEvents(): void {
+    const events = this.simulation.getEvents();
+    if (events.length === 0) {
+      return;
+    }
+    this.pendingEvents.push(...events);
+    const excess = this.pendingEvents.length - MAX_PENDING_EVENTS;
+    if (excess > 0) {
+      this.pendingEvents.splice(0, excess);
+    }
+  }
+
   private publish(): PublicGameState {
-    const state = this.simulation.createSnapshot();
+    const snapshot = this.simulation.createSnapshot();
+    const state =
+      this.pendingEvents.length === 0 ? snapshot : { ...snapshot, events: this.pendingEvents };
+    this.pendingEvents = [];
     for (const listener of this.listeners) {
       listener(state);
     }

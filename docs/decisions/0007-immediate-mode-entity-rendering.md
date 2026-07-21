@@ -111,15 +111,29 @@ migration partielle vers un autre style.
 - la boucle de rendu ne doit rien allouer par entité et par frame ;
 - toute passe supplémentaire doit préciser sa position dans l'ordre ci-dessus.
 
-## Limite connue
+## Limite identifiée puis corrigée
 
 `GameSimulation.step()` réinitialise ses événements à chaque tick, alors que
 `LocalSession` ne publie qu'une fois par frame après avoir consommé son accumulateur.
-Lorsqu'une frame traite plusieurs ticks, seuls les événements du dernier tick parviennent
-au client : les flashes et les gerbes correspondants sont perdus.
+Lorsqu'une frame traitait plusieurs ticks, seuls les événements du dernier tick
+parvenaient au client, et souvent aucun : les flashes et les gerbes correspondants
+étaient perdus.
 
-Le cas ne se produit pas au rythme nominal de vingt ticks par seconde pour soixante
-images par seconde, mais apparaît dès qu'une frame dépasse cent millisecondes ou que la
-vitesse de simulation de débogage dépasse environ trois. La correction appartient à
-`LocalSession`, qui doit accumuler les événements des ticks intermédiaires avant de
-publier.
+Le cas ne se produisait pas au rythme nominal de vingt ticks par seconde pour soixante
+images par seconde, mais apparaissait dès qu'une frame dépassait cent millisecondes ou
+que la vitesse de simulation de débogage dépassait environ trois.
+
+La correction appartient à la session, parce que c'est elle qui détient la cadence de
+publication : `GameSimulation` expose `getEvents()` et `LocalSession` collecte les
+événements après chaque tick, puis les substitue à ceux de l'instantané au moment de
+publier. Les sémantiques de `game-core` restent inchangées, et un futur serveur
+autoritaire devra appliquer la même collecte avec sa propre cadence de diffusion.
+
+Un test de contrat vérifie qu'une frame avançant plusieurs ticks livre des événements
+provenant de plus d'un tick ; il échoue si la collecte est retirée.
+
+Le tampon est borné. Ce plafond n'est pas une protection contre une fuite mais une
+politique de rendu assumée : après une avance rapide de débogage ou un blocage long du
+navigateur, on montre les effets les plus récents au lieu de rejouer d'un coup tout ce
+qui a été sauté. Il n'est pas atteignable dans le jeu actuel, dont les parties se
+terminent avant.

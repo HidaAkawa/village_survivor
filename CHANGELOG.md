@@ -66,6 +66,13 @@ sémantique n'est encore appliquée, car aucune version jouable n'a été publi�
   corps et les barres de vie les suivant, afin de rester lisible en cas de
   chevauchement ;
 
+### Corrigé
+
+- les événements d'une frame traitant plusieurs ticks ne sont plus perdus : la session
+  les collecte après chaque tick au lieu de ne publier que ceux du dernier, ce qui
+  rétablit les flashes d'impact et les gerbes de particules manquants après un blocage
+  du navigateur ou une accélération de la simulation.
+
 ### Sécurité
 
 - l'API de débogage est limitée au développement et son absence du build est testée ;
