@@ -1,7 +1,7 @@
 # Déploiement
 
-Statut : **cible documentée, aucun déploiement configuré**
-Dernière mise à jour : 20 juillet 2026
+Statut : **build de production et CI configurés, hébergement non configuré**
+Dernière mise à jour : 21 juillet 2026
 
 ## 1. Objectifs
 
@@ -14,8 +14,14 @@ Dernière mise à jour : 20 juillet 2026
 
 ## 2. État actuel
 
-Le dépôt ne contient encore ni application, ni workflow GitHub Actions, ni
-configuration Cloudflare, ni image Docker. Aucune URL de jeu n'existe.
+Le client M1 produit un site statique dans `apps/client/dist`. Le workflow GitHub
+Actions installe les dépendances avec le lockfile, contrôle formatage, lint, types,
+tests et build, puis exécute les scénarios Playwright sur le build de production et
+sur le serveur de développement. Le smoke test de production vérifie notamment que
+l'API de débogage n'est pas exposée.
+
+La configuration Cloudflare, l'URL publique et l'image Docker du futur serveur ne sont
+pas encore créées. M1 est donc déployable comme site statique, mais pas encore publié.
 
 Le dépôt GitHub public est
 [HidaAkawa/village_survivor](https://github.com/HidaAkawa/village_survivor).
@@ -32,7 +38,7 @@ Une preview ne doit pas partager par défaut des secrets ou ressources de produc
 
 ## 4. Pipeline de contrôle
 
-Le pipeline cible suit cet ordre :
+Le pipeline M1 suit cet ordre :
 
 1. checkout du commit ;
 2. installation de la version de pnpm verrouillée ;
@@ -43,7 +49,9 @@ Le pipeline cible suit cet ordre :
 7. `pnpm test` ;
 8. `pnpm build` ;
 9. smoke tests Playwright sur le build ;
-10. publication uniquement pour les branches et environnements autorisés.
+10. scénarios navigateur sur le serveur de développement.
+
+La publication sera ajoutée uniquement pour les branches et environnements autorisés.
 
 Les étapes de déploiement dépendent des contrôles précédents. Un échec interdit la
 publication du commit concerné.
@@ -59,7 +67,7 @@ Workers Static Assets.
 
 - aucune variable secrète ne doit être intégrée au bundle ;
 - les variables publiques sont explicitement préfixées et documentées ;
-- le build de production ne contient pas l'API de débogage ;
+- le build de production n'expose pas l'API de débogage ;
 - les assets utilisent des noms versionnés ou des règles de cache compatibles avec un
   retour arrière ;
 - le chargement d'une route publique doit fonctionner sans état serveur en V1.

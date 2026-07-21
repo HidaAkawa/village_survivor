@@ -1,12 +1,38 @@
 # Règles de gameplay courantes
 
-Statut : **règles acceptées, non encore implémentées**
-Dernière mise à jour : 20 juillet 2026
+Statut : **règles V1 acceptées, sous-ensemble M1 implémenté**
+Dernière mise à jour : 21 juillet 2026
 
 Ce document est une photographie pratique des règles validées. Le document normatif
 détaillé reste [`../product/product-pillars.md`](../product/product-pillars.md), et les
 décisions numérotées sont conservées dans
 [`../product/decisions/2026-07-20-product-workshop.md`](../product/decisions/2026-07-20-product-workshop.md).
+
+## Sous-ensemble M1 implémenté
+
+Le premier MVP est un POC solo local, volontairement accessible, qui valide la boucle
+fonctionnelle et les principaux garde-fous techniques :
+
+- interface intégralement en français et partie reproductible à partir d'une graine ;
+- carte de 2 200 unités avec village central, trois gisements de bois finis et gardés,
+  groupes dormants et progression du danger avec la distance ;
+- journées et nuits de 75 secondes, puis activation finale de 90
+  secondes ;
+- collecte limitée à 8 unités transportées, dépôt explicite avec `E` dans la zone du
+  village et stock personnel sécurisé ;
+- disciplines fixes Épée et Barrière : attaque automatique, Fente, protection passive
+  et Dôme actif ;
+- montée de niveau avec trois choix d'amélioration sans pause de la simulation ;
+- zone du village délimitée visuellement avec indication intérieur/extérieur ;
+- construction d'une baliste sur emplacement fixe, portée visible et tirs animés,
+  puis amélioration du cœur jusqu'au déclenchement de la vague finale ;
+- victoire après l'activation finale, défaite à la mort du personnage ou à la
+  destruction du village.
+
+Les artefacts, le multijoueur, l'état à terre, la furtivité détaillée, les branches du
+village et les autres disciplines restent dans la cible V1, pas dans M1. Les valeurs
+d'équilibrage de M1 sont initiales et pourront évoluer sans remettre en cause cette
+boucle.
 
 ## Partie
 
@@ -112,13 +138,13 @@ décisions numérotées sont conservées dans
 - La partie est perdue si le village est détruit ou si aucun personnage vivant ne peut
   encore relever un allié.
 
-## Valeurs et contenus encore ouverts
+## Valeurs et contenus encore ouverts pour la V1
 
 - nom et fiction du niveau ultime du cœur ;
 - durées, coûts, poids, portées et délais ;
 - contenu exact des branches, artefacts et améliorations ;
 - seuils de contribution à l'expérience ;
-- périmètre et paire de disciplines du premier MVP.
+- disciplines et contenus à ajouter après Épée et Barrière.
 
 Ces ouvertures sont des paramètres ou choix de contenu. Elles ne remettent pas en cause
 les invariants d'architecture définis dans

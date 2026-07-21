@@ -1,6 +1,6 @@
 # Feuille de route
 
-Dernière mise à jour : 20 juillet 2026
+Dernière mise à jour : 21 juillet 2026
 
 ## Convention
 
@@ -22,7 +22,7 @@ gameplay restent soumis à validation humaine avant développement approfondi.
 - créer les ADR structurants et la matrice de traçabilité ;
 - établir les documents de projet minimaux.
 
-## Jalon T0 — Initialisation technique — Prochain
+## Jalon T0 — Initialisation technique — Terminé
 
 Objectif : obtenir une base saine, automatisée et affichable, sans développer la boucle
 complète du jeu.
@@ -41,7 +41,7 @@ complète du jeu.
 Critère de sortie : un clone neuf peut installer, contrôler, tester, construire et
 lancer un écran connecté à une simulation minimale.
 
-## Jalon P1 — Premier incrément jouable — Planifié
+## Jalon P1 — Premier incrément jouable — Terminé
 
 Objectif : prouver le déplacement et une interaction de combat sans construire trop
 tôt la boucle complète.
@@ -56,7 +56,7 @@ tôt la boucle complète.
 - état inspectable par l'API de débogage ;
 - tests de simulation et parcours navigateur.
 
-## Jalon P2 — Boucle survivor — Planifié
+## Jalon P2 — Boucle survivor — Terminé
 
 - attaques automatiques ;
 - apparition et difficulté progressives ;
@@ -66,13 +66,13 @@ tôt la boucle complète.
 - compteur de temps ;
 - scénario de performance reproductible.
 
-## Jalon M1 — Premier MVP Village Survivor — Périmètre candidat
+## Jalon M1 — Premier MVP Village Survivor — Terminé
 
-Le contrat exact sera validé au démarrage du développement. Le périmètre recommandé
-est une tranche solo de 10 à 15 minutes comportant :
+Le contrat a été validé le 21 juillet 2026. Le MVP est une tranche solo de 10 à 15
+minutes comportant :
 
 - une carte petite et reproductible à partir d'une graine ;
-- un personnage avec une paire fixe de disciplines ;
+- un personnage avec la paire fixe Épée et Barrière ;
 - exploration d'une ressource gardée, transport et dépôt personnel ;
 - alternance d'un jour et d'une nuit ;
 - monstres présents le jour puis assaillant le village la nuit ;
@@ -88,7 +88,12 @@ Critère de sortie : la chaîne « explorer → prendre un risque → rapporter 
 → défendre → gagner ou perdre » est jouable, testable et suffisamment lisible pour un
 premier playtest humain.
 
-## Jalon V1 — Boucle solo élargie — Planifié
+Vérification livrée : tests Vitest du parcours complet, test contractuel de
+`LocalSession`, parcours Playwright jusqu'à la victoire, smoke test du build de
+production et scénario reproductible de quinze minutes simulées avec plus de cent
+entités.
+
+## Jalon V1 — Boucle solo élargie — Prochain
 
 - génération de carte respectant les garanties de ressources ;
 - population diurne, gardiens et groupes endormis ;
@@ -134,7 +139,6 @@ premier playtest humain.
 
 ## Décisions à obtenir au moment utile
 
-- périmètre final du premier MVP et paire de disciplines retenue ;
 - licence du dépôt public ;
 - budgets non fonctionnels chiffrés avant le premier playtest public ;
 - fiction et nom du niveau ultime du cœur ;

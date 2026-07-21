@@ -8,6 +8,18 @@ sémantique n'est encore appliquée, car aucune version jouable n'a été publi�
 
 ### Ajouté
 
+- premier MVP solo jouable avec carte issue d'une graine, cycles jour/nuit et vague
+  finale ;
+- disciplines Épée et Barrière, attaque automatique, compétences actives, expérience
+  et choix d'améliorations sans pause ;
+- gisements gardés, transport limité, stock personnel, baliste et progression du Cœur
+  du village ;
+- monorepo pnpm avec client Phaser 4, protocoles partagés, contenu Zod validé et
+  simulation headless à pas fixe ;
+- HUD français, minimap, sons synthétiques, métriques de développement et graphismes
+  temporaires ;
+- tests Vitest, parcours Playwright, smoke test du build de production, benchmark et
+  workflow GitHub Actions ;
 - piliers produit et décisions détaillées de l'atelier du 20 juillet 2026 ;
 - inventaire fonctionnel et matrice de sélection du prototype historique ;
 - cadrage technique initial avec exigences identifiées et règles de changement ;
@@ -18,7 +30,20 @@ sémantique n'est encore appliquée, car aucune version jouable n'a été publi�
 - règles de gameplay courantes, feuille de route et cible de déploiement ;
 - porte d'entrée documentaire du dépôt.
 
+### Modifié
+
+- les journées et les nuits durent désormais toutes deux 75 secondes ;
+- la zone du village possède une limite visible et un indicateur intérieur/extérieur ;
+- le dépôt des ressources exige maintenant `E` dans le village au lieu d'être
+  automatique ;
+- la portée de la baliste est visible et chaque tir prend la forme d'un carreau animé ;
+- l'attaque automatique de l'Épée produit un arc de lame orienté vers sa cible ;
+- le sol diurne utilise une teinte très claire avec des contrastes adaptés ;
+
 ### Sécurité
 
+- l'API de débogage est limitée au développement et son absence du build est testée ;
+- les données issues de l'URL sont échappées avant affichage et couvertes par le smoke
+  test de production ;
 - la provenance et les droits des futurs assets deviennent une exigence explicite ;
 - la politique interdit les secrets dans Git et diffère toute télémétrie non validée.

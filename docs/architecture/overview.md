@@ -1,7 +1,7 @@
 # Vue d'ensemble de l'architecture
 
-Statut : **architecture cible acceptée, implémentation non commencée**
-Date : 20 juillet 2026
+Statut : **architecture locale M1 implémentée, architecture réseau planifiée**
+Date : 21 juillet 2026
 
 ## 1. Objectif
 
@@ -16,10 +16,14 @@ Les règles fonctionnelles se trouvent dans
 
 ## 2. État actuel
 
-À la date de ce document, le dépôt contient uniquement du cadrage. Aucun client,
-serveur, package de simulation ou pipeline de déploiement n'est encore implémenté.
-Les diagrammes et structures ci-dessous décrivent donc la cible, pas un système déjà
-livré.
+M1 livre le client Phaser dans `apps/client`, le port `GameSession` dans
+`packages/protocol`, le catalogue validé dans `packages/content`, la simulation à pas
+fixe dans `packages/game-core` et l'adaptateur `LocalSession` côté client. Les tests
+Vitest et Playwright ainsi que le pipeline GitHub Actions couvrent ce chemin local.
+
+Le serveur Colyseus, `NetworkSession`, la persistance et le déploiement public restent
+planifiés. Dans les diagrammes suivants, les liens en pointillés représentent ces
+capacités futures.
 
 ## 3. Contexte du système
 
@@ -75,9 +79,8 @@ Cette frontière apporte trois garanties :
 | `assets` | Sources et résultats graphiques/sonores avec provenance | Scripts d'assets | Logique de gameplay |
 | `tests` | Scénarios transverses, navigateur, performance et réseau | Interfaces publiques | Contournement des frontières de production |
 
-Les packages exacts seront créés au moment où leur premier usage apparaît. La
-séparation logique est obligatoire même si l'arborescence physique démarre plus
-petite.
+Les composants client, `protocol`, `content`, `game-core` et `tests` existent depuis
+M1. `apps/server` et les scripts d'assets seront créés avec leur premier incrément.
 
 ## 6. Direction des dépendances
 

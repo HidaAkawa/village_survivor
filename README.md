@@ -5,12 +5,12 @@ développement d'un village et défense nocturne contre des vagues de monstres.
 
 ## État du projet
 
-Le projet est actuellement en **phase de cadrage**. Les décisions produit et
-l'architecture cible sont documentées, mais aucun client, serveur ou package de
-simulation n'est encore implémenté.
+Le premier **MVP solo M1 est implémenté**. Il permet de parcourir la chaîne complète
+« explorer → rapporter → construire → défendre → gagner ou perdre » dans un client
+Phaser relié à une simulation TypeScript indépendante et reproductible.
 
-Le prochain jalon est l'initialisation du monorepo puis la construction d'un premier
-MVP solo jouable. Voir [`ROADMAP.md`](ROADMAP.md).
+Le prochain jalon est l'élargissement progressif de cette preuve de concept vers la
+V1 fonctionnelle décrite dans [`ROADMAP.md`](ROADMAP.md).
 
 ## Principes essentiels
 
@@ -38,7 +38,7 @@ MVP solo jouable. Voir [`ROADMAP.md`](ROADMAP.md).
 | Feuille de route | [`ROADMAP.md`](ROADMAP.md) |
 | Historique des changements | [`CHANGELOG.md`](CHANGELOG.md) |
 
-## Architecture cible
+## Architecture locale implémentée
 
 ```text
 Client Phaser
@@ -49,24 +49,39 @@ Client Phaser
     `-- NetworkSession --> serveur Colyseus --> game-core
 ```
 
-Le cœur de jeu ne dépend ni du rendu ni du transport. Cette séparation doit permettre
-de valider rapidement le solo sans préparer le multijoueur par une réécriture.
+Le cœur de jeu ne dépend ni du rendu ni du transport. `NetworkSession` et le serveur
+restent des cibles futures ; le client actuel utilise exclusivement `LocalSession`.
 
-## Commandes prévues
+## Lancer le jeu
 
-Après l'incrément d'initialisation, les commandes suivantes devront fonctionner depuis
-la racine :
+Prérequis : Node.js 24 ou 26 et pnpm 11. Depuis la racine :
 
 ```bash
 pnpm install
 pnpm dev
-pnpm build
-pnpm test
-pnpm lint
-pnpm typecheck
 ```
 
-Elles ne sont **pas encore disponibles**, car le monorepo n'a pas été initialisé.
+Le jeu est ensuite disponible sur `http://127.0.0.1:5173`. Les contrôles sont ZQSD,
+WASD ou les flèches pour se déplacer, `E` pour interagir ou déposer les ressources au
+village, `Espace` pour Fente et `Maj` pour Barrière.
+
+## Contrôles de qualité
+
+```bash
+pnpm build
+pnpm test
+pnpm test:smoke
+pnpm test:e2e
+pnpm lint
+pnpm typecheck
+pnpm format:check
+pnpm benchmark
+pnpm check
+```
+
+L'API `window.__VILLAGE_SURVIVOR_DEBUG__` est exposée uniquement par le serveur de
+développement. Le smoke test de production vérifie explicitement qu'elle n'est pas
+exposée par le build.
 
 ## Dépôts
 
