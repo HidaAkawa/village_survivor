@@ -63,7 +63,8 @@ pnpm dev
 
 Le jeu est ensuite disponible sur `http://127.0.0.1:5173`. Les contrôles sont ZQSD,
 WASD ou les flèches pour se déplacer, `E` pour interagir ou déposer les ressources au
-village, `Espace` pour Fente et `Maj` pour Barrière.
+village, `B` pour fabriquer une baliste à l'emplacement du personnage, `Espace` pour
+Fente et `Maj` pour Barrière.
 
 ## Contrôles de qualité
 

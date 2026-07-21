@@ -37,6 +37,11 @@ sémantique n'est encore appliquée, car aucune version jouable n'a été publi�
 - le dépôt des ressources exige maintenant `E` dans le village au lieu d'être
   automatique ;
 - la portée de la baliste est visible et chaque tir prend la forme d'un carreau animé ;
+- les balistes peuvent être fabriquées en plusieurs exemplaires à la position choisie
+  dans le village ; leur chantier de cinq secondes est interrompu et remboursé si le
+  personnage subit des dégâts ;
+- l'équilibrage oppose désormais davantage de dormeurs et de renforts, des ennemis plus
+  dangereux et une survie moins permissive dès la première nuit ;
 - l'attaque automatique de l'Épée produit un arc de lame orienté vers sa cible ;
 - le sol diurne utilise une teinte très claire avec des contrastes adaptés ;
 

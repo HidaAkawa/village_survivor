@@ -10,7 +10,7 @@ décisions numérotées sont conservées dans
 
 ## Sous-ensemble M1 implémenté
 
-Le premier MVP est un POC solo local, volontairement accessible, qui valide la boucle
+Le premier MVP est un POC solo local qui valide la boucle
 fonctionnelle et les principaux garde-fous techniques :
 
 - interface intégralement en français et partie reproductible à partir d'une graine ;
@@ -24,8 +24,12 @@ fonctionnelle et les principaux garde-fous techniques :
   et Dôme actif ;
 - montée de niveau avec trois choix d'amélioration sans pause de la simulation ;
 - zone du village délimitée visuellement avec indication intérieur/extérieur ;
-- construction d'une baliste sur emplacement fixe, portée visible et tirs animés,
-  puis amélioration du cœur jusqu'au déclenchement de la vague finale ;
+- fabrication de plusieurs balistes librement placées dans le village, avec chantier
+  de cinq secondes interrompu par les dégâts, portée visible et tirs animés, puis
+  amélioration du cœur jusqu'au déclenchement de la vague finale ;
+- pression renforcée dès la première nuit : davantage de groupes dormants et de
+  renforts, ennemis plus résistants et dangereux, personnage et village moins
+  permissifs ;
 - victoire après l'activation finale, défaite à la mort du personnage ou à la
   destruction du village.
 
@@ -75,8 +79,13 @@ boucle.
   diminue sous attaque et peut être amélioré.
 - Une colonne vertébrale de prérequis mène au niveau ultime du cœur.
 - Des branches facultatives améliorent soins, défense, production ou exploration.
-- Les défenses permanentes utilisent des emplacements prédéfinis.
-- Des constructions tactiques limitées peuvent être placées librement.
+- Les bâtiments structurants peuvent utiliser des emplacements prédéfinis.
+- Les balistes sont des constructions tactiques librement placées dans la zone du
+  village, à distance du Cœur et les unes des autres.
+- Chaque baliste coûte 6 bois et demande cinq secondes de fabrication. Le personnage
+  reste immobilisé et exposé ; tout dégât interrompt le chantier et rembourse le coût.
+- Le nombre de balistes n'est pas plafonné autrement que par les ressources et les
+  contraintes de placement.
 - Une défense permanente financée par un joueur devient propriété du village et peut
   être améliorée par les autres ; sa contribution initiale reste attribuée.
 

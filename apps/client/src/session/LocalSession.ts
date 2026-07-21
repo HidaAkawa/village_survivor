@@ -170,6 +170,9 @@ export class LocalSession implements GameSession {
       ...(input.aimX === undefined ? {} : { aimX: input.aimX }),
       ...(input.aimY === undefined ? {} : { aimY: input.aimY }),
       ...(input.interact === true || this.currentInput.interact === true ? { interact: true } : {}),
+      ...(input.buildDefense === true || this.currentInput.buildDefense === true
+        ? { buildDefense: true }
+        : {}),
       ...(input.activateSword === true || this.currentInput.activateSword === true
         ? { activateSword: true }
         : {}),

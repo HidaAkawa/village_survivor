@@ -13,6 +13,20 @@ function input(sequence: number, overrides: Partial<PlayerInput> = {}): PlayerIn
   };
 }
 
+function finishConstruction(simulation: GameSimulation, sequence: number): number {
+  const ticks = defaultContent.defense.buildDurationMs / defaultContent.simulation.tickMs;
+  for (let tick = 0; tick < ticks; tick += 1) {
+    simulation.step(input(sequence++));
+  }
+  return sequence;
+}
+
+function clearGuardians(simulation: GameSimulation): void {
+  for (const resource of simulation.getState().resources) {
+    simulation.defeatEnemy(resource.guardianId);
+  }
+}
+
 describe('GameSimulation', () => {
   it('creates a reproducible world and evolves deterministically', () => {
     const first = new GameSimulation(defaultContent, 'same-seed');
@@ -71,9 +85,10 @@ describe('GameSimulation', () => {
     };
 
     collectAndDeposit(0);
-    simulation.teleportPlayer(simulation.getState().defense.position);
-    simulation.step(input(sequence++, { interact: true }));
-    expect(simulation.getState().defense.built).toBe(true);
+    simulation.teleportPlayer({ x: 140, y: 0 });
+    simulation.step(input(sequence++, { buildDefense: true }));
+    sequence = finishConstruction(simulation, sequence);
+    expect(simulation.getState().defenses[0]?.built).toBe(true);
 
     collectAndDeposit(1);
     simulation.teleportPlayer(simulation.getState().village.position);
@@ -82,6 +97,7 @@ describe('GameSimulation', () => {
     expect(simulation.getState().player.level).toBeGreaterThanOrEqual(2);
 
     collectAndDeposit(2);
+    collectAndDeposit(3);
     simulation.teleportPlayer(simulation.getState().village.position);
     simulation.step(input(sequence++, { interact: true }));
     expect(simulation.getState().phase).toBe('final');
@@ -118,18 +134,73 @@ describe('GameSimulation', () => {
   it('publishes the origin and target of every ballista shot', () => {
     const simulation = new GameSimulation(defaultContent, 'ballista-shot');
     simulation.start();
+    clearGuardians(simulation);
     simulation.giveResources(defaultContent.defense.buildCost);
-    simulation.teleportPlayer(simulation.getState().defense.position);
-    simulation.step(input(1, { interact: true }));
+    simulation.teleportPlayer({ x: 140, y: 0 });
+    simulation.step(input(1, { buildDefense: true }));
+    finishConstruction(simulation, 2);
+    const defense = simulation.getState().defenses[0]!;
     simulation.spawnEnemy('raider', {
-      x: simulation.getState().defense.position.x + 100,
-      y: simulation.getState().defense.position.y,
+      x: defense.position.x + 100,
+      y: defense.position.y,
     });
 
-    const state = simulation.step(input(2));
+    const state = simulation.step(input(200));
     const shot = state.events.find((event) => event.type === 'defense-fired');
-    expect(shot?.origin).toEqual(state.defense.position);
+    expect(shot?.origin).toEqual(defense.position);
     expect(shot?.position).toBeDefined();
+  });
+
+  it('builds several ballistas at player-chosen positions when resources allow it', () => {
+    const simulation = new GameSimulation(defaultContent, 'several-ballistas');
+    simulation.start();
+    clearGuardians(simulation);
+    simulation.giveResources(defaultContent.defense.buildCost * 2);
+    let sequence = 1;
+
+    simulation.teleportPlayer({ x: 140, y: 0 });
+    simulation.step(input(sequence++, { buildDefense: true }));
+    sequence = finishConstruction(simulation, sequence);
+    simulation.teleportPlayer({ x: -140, y: 0 });
+    simulation.step(input(sequence++, { buildDefense: true }));
+    finishConstruction(simulation, sequence);
+
+    const defenses = simulation.getState().defenses;
+    expect(defenses).toHaveLength(2);
+    expect(defenses.every((defense) => defense.built)).toBe(true);
+    expect(defenses.map((defense) => defense.position)).toEqual([
+      { x: 140, y: 0 },
+      { x: -140, y: 0 },
+    ]);
+  });
+
+  it('interrupts an active ballista build on damage and refunds its resources', () => {
+    const simulation = new GameSimulation(defaultContent, 'interrupted-build');
+    simulation.start();
+    clearGuardians(simulation);
+    simulation.giveResources(defaultContent.defense.buildCost);
+    simulation.teleportPlayer({ x: 140, y: 0 });
+    simulation.step(input(1, { buildDefense: true }));
+    simulation.step(input(2));
+
+    simulation.damagePlayer(1);
+
+    const state = simulation.getState();
+    expect(state.defenses).toHaveLength(0);
+    expect(state.player.storedWood).toBe(defaultContent.defense.buildCost);
+    expect(state.events.some((event) => event.type === 'defense-construction-interrupted')).toBe(
+      true,
+    );
+  });
+
+  it('starts the first night with a substantially denser assault', () => {
+    const simulation = new GameSimulation(defaultContent, 'harder-night');
+    simulation.start();
+    simulation.skipToNight();
+
+    const assailants = simulation.getState().enemies.filter((enemy) => enemy.kind !== 'guardian');
+    expect(assailants).toHaveLength(14);
+    expect(assailants.filter((enemy) => enemy.kind === 'raider')).toHaveLength(5);
   });
 
   it('publishes a directional event for the automatic sword attack', () => {
@@ -139,7 +210,7 @@ describe('GameSimulation', () => {
     simulation.spawnEnemy('guardian', { x: player.x + 70, y: player.y });
 
     let state = simulation.getState();
-    for (let tick = 1; tick <= 13; tick += 1) {
+    for (let tick = 1; tick <= 15; tick += 1) {
       state = simulation.step(input(tick));
     }
 

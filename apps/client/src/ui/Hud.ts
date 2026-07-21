@@ -104,6 +104,8 @@ export class Hud {
     const playerHp = percentage(state.player.hp, state.player.maxHp);
     const villageHp = percentage(state.village.hp, state.village.maxHp);
     const experience = percentage(state.player.experience, state.player.experienceToNext);
+    const operationalDefenses = state.defenses.filter((defense) => defense.built);
+    const construction = state.defenses.find((defense) => !defense.built);
     const insideVillage =
       Math.hypot(
         state.player.position.x - state.village.position.x,
@@ -131,7 +133,7 @@ export class Hud {
         <div class="stat-heading"><span>Cœur du village</span><strong>Niv. ${state.village.heartLevel}</strong></div>
         <div class="bar bar--village"><i style="width:${villageHp}%"></i><span>${Math.ceil(state.village.hp)} / ${state.village.maxHp} PV</span></div>
         <p class="location location--${insideVillage ? 'inside' : 'outside'}" data-testid="location"><i></i>${insideVillage ? 'Dans le village' : 'À l’extérieur du village'}</p>
-        <p>Baliste : <strong>${state.defense.built ? `${Math.ceil(state.defense.hp)} PV` : 'à construire'}</strong></p>
+        <p>Balistes : <strong>${operationalDefenses.length} opérationnelle${operationalDefenses.length > 1 ? 's' : ''}${construction === undefined ? '' : ` · chantier ${(construction.buildRemainingMs / 1_000).toFixed(1)} s`}</strong></p>
       </aside>
       <section class="objective" data-testid="objective"><span>OBJECTIF</span><strong>${escapeHtml(state.objective)}</strong></section>
       <section class="interaction" data-testid="interaction-hint">${hint}</section>
@@ -139,7 +141,7 @@ export class Hud {
         <div><kbd>Espace</kbd><span>Fente</span><strong>${cooldownLabel(state.player.sword.cooldownRemainingMs)}</strong></div>
         <div class="ability--barrier"><kbd>Maj</kbd><span>Barrière</span><strong>${cooldownLabel(state.player.barrier.cooldownRemainingMs)}</strong></div>
       </section>
-      <footer class="controls"><span><kbd>ZQSD</kbd> / flèches · déplacement</span><span><kbd>E</kbd> · interagir</span><span>Souris · viser</span></footer>
+      <footer class="controls"><span><kbd>ZQSD</kbd> / flèches · déplacement</span><span><kbd>E</kbd> · interagir</span><span><kbd>B</kbd> · baliste à votre position</span><span>Souris · viser</span></footer>
       ${upgradePanel}
       ${resultPanel}
     `;

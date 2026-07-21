@@ -78,6 +78,11 @@ export class AudioFeedback {
       case 'heart-upgraded':
       case 'level-up':
         return { frequency: 260, endFrequency: 620, duration: 0.3, volume: 0.05, type: 'triangle' };
+      case 'defense-construction-started':
+        return { frequency: 150, endFrequency: 240, duration: 0.18, volume: 0.04, type: 'square' };
+      case 'defense-construction-interrupted':
+      case 'defense-destroyed':
+        return { frequency: 180, endFrequency: 65, duration: 0.35, volume: 0.05, type: 'sawtooth' };
       case 'defense-fired':
         return { frequency: 210, endFrequency: 90, duration: 0.1, volume: 0.04, type: 'square' };
       case 'phase-changed':

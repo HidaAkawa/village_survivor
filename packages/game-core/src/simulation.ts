@@ -77,15 +77,16 @@ interface MutableVillage {
 }
 
 interface MutableDefense {
+  id: string;
   position: Vector2;
   built: boolean;
   hp: number;
   maxHp: number;
   cooldownRemainingMs: number;
+  buildRemainingMs: number;
 }
 
 const VILLAGE_POSITION: Vector2 = { x: 0, y: 0 };
-const DEFENSE_POSITION: Vector2 = { x: 165, y: 0 };
 const ENEMY_RADIUS = 18;
 const PLAYER_AGGRO_RANGE = 165;
 
@@ -95,9 +96,9 @@ export class GameSimulation {
   private readonly content: GameContent;
   private readonly resources: MutableResource[] = [];
   private readonly enemies: MutableEnemy[] = [];
+  private readonly defenses: MutableDefense[] = [];
   private readonly player: MutablePlayer;
   private readonly village: MutableVillage;
-  private readonly defense: MutableDefense;
   private status: GameStatus = 'ready';
   private resultReason: string | undefined;
   private phase: GamePhase = 'day';
@@ -106,6 +107,8 @@ export class GameSimulation {
   private tick = 0;
   private elapsedMs = 0;
   private enemyCounter = 0;
+  private defenseCounter = 0;
+  private activeConstructionId: string | undefined;
   private eventCounter = 0;
   private events: GameEvent[] = [];
   private upgradeChoices: UpgradeDefinition[] = [];
@@ -149,13 +152,6 @@ export class GameSimulation {
       heartLevel: 1,
       underAttack: false,
     };
-    this.defense = {
-      position: DEFENSE_POSITION,
-      built: false,
-      hp: content.defense.maxHp,
-      maxHp: content.defense.maxHp,
-      cooldownRemainingMs: 0,
-    };
     this.generateWorld();
   }
 
@@ -181,8 +177,9 @@ export class GameSimulation {
     this.updatePlayerMovement(input, deltaSeconds);
     this.useAbilities(input);
     this.updateAutomaticSword();
-    this.updateDefense();
+    this.updateDefenses();
     this.updateEnemies(deltaMs, deltaSeconds);
+    this.updateDefenseConstruction(deltaMs);
     this.removeDefeatedEnemies();
     this.updateVillageSupport(deltaSeconds);
     this.handleInteraction(input);
@@ -246,14 +243,17 @@ export class GameSimulation {
         heartLevel: this.village.heartLevel,
         underAttack: this.village.underAttack,
       },
-      defense: {
-        position: { ...this.defense.position },
-        built: this.defense.built,
-        hp: this.defense.hp,
-        maxHp: this.defense.maxHp,
+      defenses: this.defenses.map((defense) => ({
+        id: defense.id,
+        position: { ...defense.position },
+        built: defense.built,
+        hp: defense.hp,
+        maxHp: defense.maxHp,
         range: this.content.defense.range,
-        cooldownRemainingMs: this.defense.cooldownRemainingMs,
-      },
+        cooldownRemainingMs: defense.cooldownRemainingMs,
+        buildRemainingMs: defense.buildRemainingMs,
+        buildDurationMs: this.content.defense.buildDurationMs,
+      })),
       resources: this.resources.map((resource) => ({
         id: resource.id,
         position: { ...resource.position },
@@ -420,7 +420,9 @@ export class GameSimulation {
       0,
       this.player.barrierActiveRemainingMs - deltaMs,
     );
-    this.defense.cooldownRemainingMs = Math.max(0, this.defense.cooldownRemainingMs - deltaMs);
+    for (const defense of this.defenses) {
+      defense.cooldownRemainingMs = Math.max(0, defense.cooldownRemainingMs - deltaMs);
+    }
     this.player.wardRefreshRemainingMs -= deltaMs;
     if (this.player.wardRefreshRemainingMs <= 0) {
       this.player.ward = this.player.maxWard;
@@ -429,6 +431,9 @@ export class GameSimulation {
   }
 
   private updatePlayerMovement(input: PlayerInput, deltaSeconds: number): void {
+    if (this.activeConstructionId !== undefined) {
+      return;
+    }
     const movement = normalized({ x: input.moveX, y: input.moveY });
     const nextPosition = {
       x: this.player.position.x + movement.x * this.player.moveSpeed * deltaSeconds,
@@ -495,24 +500,26 @@ export class GameSimulation {
     this.player.swordAutoCooldownRemainingMs = this.player.swordAutoCooldownMs;
   }
 
-  private updateDefense(): void {
-    if (!this.defense.built || this.defense.cooldownRemainingMs > 0) {
-      return;
+  private updateDefenses(): void {
+    for (const defense of this.defenses) {
+      if (!defense.built || defense.cooldownRemainingMs > 0) {
+        continue;
+      }
+      const target = this.findNearestEnemy(
+        defense.position,
+        this.content.defense.range,
+        (enemy) => enemy.hp > 0 && enemy.awake && enemy.kind !== 'guardian',
+      );
+      if (target === undefined) {
+        continue;
+      }
+      this.addEvent('defense-fired', 'Une baliste tire.', {
+        origin: defense.position,
+        position: target.position,
+      });
+      this.damageEnemy(target, this.content.defense.damage);
+      defense.cooldownRemainingMs = this.content.defense.cooldownMs;
     }
-    const target = this.findNearestEnemy(
-      this.defense.position,
-      this.content.defense.range,
-      (enemy) => enemy.awake && enemy.kind !== 'guardian',
-    );
-    if (target === undefined) {
-      return;
-    }
-    this.addEvent('defense-fired', 'La baliste tire.', {
-      origin: this.defense.position,
-      position: target.position,
-    });
-    this.damageEnemy(target, this.content.defense.damage);
-    this.defense.cooldownRemainingMs = this.content.defense.cooldownMs;
   }
 
   private updateEnemies(deltaMs: number, deltaSeconds: number): void {
@@ -569,8 +576,9 @@ export class GameSimulation {
       return;
     }
 
-    if (this.defense.built && distance(enemy.position, this.defense.position) <= 205) {
-      this.moveOrAttackDefense(enemy, deltaSeconds);
+    const nearbyDefense = this.findNearestDefense(enemy.position, 205);
+    if (nearbyDefense !== undefined) {
+      this.moveOrAttackDefense(enemy, nearbyDefense, deltaSeconds);
       return;
     }
     this.moveOrAttackVillage(enemy, deltaSeconds);
@@ -592,23 +600,23 @@ export class GameSimulation {
     );
   }
 
-  private moveOrAttackDefense(enemy: MutableEnemy, deltaSeconds: number): void {
+  private moveOrAttackDefense(
+    enemy: MutableEnemy,
+    defense: MutableDefense,
+    deltaSeconds: number,
+  ): void {
     const definition = this.content.enemies[enemy.kind];
-    if (distance(enemy.position, this.defense.position) <= definition.attackRange + 24) {
+    if (distance(enemy.position, defense.position) <= definition.attackRange + 24) {
       if (enemy.attackCooldownRemainingMs <= 0) {
-        this.defense.hp = Math.max(0, this.defense.hp - definition.damage);
+        defense.hp = Math.max(0, defense.hp - definition.damage);
         enemy.attackCooldownRemainingMs = definition.attackCooldownMs;
-        if (this.defense.hp <= 0) {
-          this.defense.built = false;
+        if (defense.hp <= 0) {
+          this.destroyDefense(defense);
         }
       }
       return;
     }
-    enemy.position = moveTowards(
-      enemy.position,
-      this.defense.position,
-      definition.speed * deltaSeconds,
-    );
+    enemy.position = moveTowards(enemy.position, defense.position, definition.speed * deltaSeconds);
   }
 
   private moveOrAttackVillage(enemy: MutableEnemy, deltaSeconds: number): void {
@@ -656,6 +664,9 @@ export class GameSimulation {
       position: this.player.position,
       amount,
     });
+    if (amount > 0) {
+      this.interruptDefenseConstruction();
+    }
   }
 
   private damageEnemy(enemy: MutableEnemy, amount: number): void {
@@ -706,6 +717,10 @@ export class GameSimulation {
   }
 
   private handleInteraction(input: PlayerInput): void {
+    if (input.buildDefense === true) {
+      this.startDefenseConstruction();
+      return;
+    }
     if (input.interact !== true) {
       return;
     }
@@ -718,10 +733,13 @@ export class GameSimulation {
       this.depositCarriedResources();
       return;
     }
-    if (
-      distance(this.player.position, this.defense.position) <= this.content.player.interactionRange
-    ) {
-      this.buildOrRepairDefense();
+    const nearbyDefense = this.findNearestDefense(
+      this.player.position,
+      this.content.player.interactionRange,
+      true,
+    );
+    if (nearbyDefense !== undefined) {
+      this.repairDefense(nearbyDefense);
       return;
     }
     if (
@@ -748,23 +766,103 @@ export class GameSimulation {
     });
   }
 
-  private buildOrRepairDefense(): void {
-    if (!this.defense.built) {
-      if (this.player.storedWood < this.content.defense.buildCost) {
-        return;
-      }
-      this.player.storedWood -= this.content.defense.buildCost;
-      this.defense.built = true;
-      this.defense.hp = this.defense.maxHp;
-      this.addEvent('defense-built', 'La baliste du village est opérationnelle.', {
-        position: this.defense.position,
-      });
+  private repairDefense(defense: MutableDefense): void {
+    if (defense.built && defense.hp < defense.maxHp && this.player.storedWood >= 1) {
+      this.player.storedWood -= 1;
+      defense.hp = Math.min(defense.maxHp, defense.hp + 45);
+    }
+  }
+
+  private startDefenseConstruction(): void {
+    if (
+      this.activeConstructionId !== undefined ||
+      !this.canPlaceDefenseAt(this.player.position) ||
+      this.player.storedWood < this.content.defense.buildCost
+    ) {
       return;
     }
-    if (this.defense.hp < this.defense.maxHp && this.player.storedWood >= 1) {
-      this.player.storedWood -= 1;
-      this.defense.hp = Math.min(this.defense.maxHp, this.defense.hp + 45);
+    this.defenseCounter += 1;
+    const defense: MutableDefense = {
+      id: `defense-${this.defenseCounter}`,
+      position: { ...this.player.position },
+      built: false,
+      hp: this.content.defense.maxHp,
+      maxHp: this.content.defense.maxHp,
+      cooldownRemainingMs: 0,
+      buildRemainingMs: this.content.defense.buildDurationMs,
+    };
+    this.player.storedWood -= this.content.defense.buildCost;
+    this.defenses.push(defense);
+    this.activeConstructionId = defense.id;
+    this.addEvent('defense-construction-started', 'Fabrication de la baliste : restez à couvert.', {
+      position: defense.position,
+    });
+  }
+
+  private updateDefenseConstruction(deltaMs: number): void {
+    if (this.activeConstructionId === undefined) {
+      return;
     }
+    const defense = this.defenses.find((candidate) => candidate.id === this.activeConstructionId);
+    if (defense === undefined) {
+      this.activeConstructionId = undefined;
+      return;
+    }
+    defense.buildRemainingMs = Math.max(0, defense.buildRemainingMs - deltaMs);
+    if (defense.buildRemainingMs > 0) {
+      return;
+    }
+    defense.built = true;
+    this.activeConstructionId = undefined;
+    this.addEvent('defense-built', 'La baliste est opérationnelle.', {
+      position: defense.position,
+    });
+  }
+
+  private interruptDefenseConstruction(): void {
+    if (this.activeConstructionId === undefined) {
+      return;
+    }
+    const index = this.defenses.findIndex((defense) => defense.id === this.activeConstructionId);
+    const defense = this.defenses[index];
+    this.activeConstructionId = undefined;
+    if (defense === undefined) {
+      return;
+    }
+    this.defenses.splice(index, 1);
+    this.player.storedWood += this.content.defense.buildCost;
+    this.addEvent(
+      'defense-construction-interrupted',
+      'Fabrication interrompue par les dégâts : ressources remboursées.',
+      { position: defense.position },
+    );
+  }
+
+  private destroyDefense(defense: MutableDefense): void {
+    if (defense.id === this.activeConstructionId) {
+      this.interruptDefenseConstruction();
+      return;
+    }
+    const index = this.defenses.findIndex((candidate) => candidate.id === defense.id);
+    if (index >= 0) {
+      this.defenses.splice(index, 1);
+      this.addEvent('defense-destroyed', 'Une baliste a été détruite.', {
+        position: defense.position,
+      });
+    }
+  }
+
+  private canPlaceDefenseAt(position: Vector2): boolean {
+    const heartDistance = distance(position, this.village.position);
+    if (
+      heartDistance < this.content.defense.minimumHeartDistance ||
+      heartDistance > this.content.village.areaRadius - 28
+    ) {
+      return false;
+    }
+    return this.defenses.every(
+      (defense) => distance(position, defense.position) >= this.content.defense.minimumSpacing,
+    );
   }
 
   private upgradeVillageHeart(): void {
@@ -781,7 +879,7 @@ export class GameSimulation {
     }
     if (
       this.village.heartLevel === 2 &&
-      this.defense.built &&
+      this.hasOperationalDefense() &&
       this.player.level >= 2 &&
       this.player.storedWood >= this.content.village.ultimateCost
     ) {
@@ -878,7 +976,7 @@ export class GameSimulation {
         enemy.awake = true;
       }
     }
-    const raiderCount = 1 + this.cycle;
+    const raiderCount = 3 + this.cycle * 2;
     for (let index = 0; index < raiderCount; index += 1) {
       const position = this.randomRingPosition(850, 1_020);
       this.createEnemy('raider', position, position, true);
@@ -897,7 +995,7 @@ export class GameSimulation {
         enemy.home = { ...enemy.position };
       }
     }
-    const reinforcementCount = Math.min(4, this.cycle);
+    const reinforcementCount = Math.min(7, 2 + this.cycle * 2);
     for (let index = 0; index < reinforcementCount; index += 1) {
       const position = this.randomRingPosition(620, 980);
       this.createEnemy('sleeper', position, position, false);
@@ -913,11 +1011,11 @@ export class GameSimulation {
         enemy.awake = true;
       }
     }
-    for (let index = 0; index < 8; index += 1) {
+    for (let index = 0; index < 14; index += 1) {
       const position = this.randomRingPosition(860, 1_020);
       this.createEnemy('raider', position, position, true);
     }
-    for (let index = 0; index < 2; index += 1) {
+    for (let index = 0; index < 4; index += 1) {
       const position = this.randomRingPosition(900, 1_040);
       this.createEnemy('brute', position, position, true);
     }
@@ -968,6 +1066,30 @@ export class GameSimulation {
     return nearest;
   }
 
+  private findNearestDefense(
+    origin: Vector2,
+    maximumDistance: number,
+    builtOnly = false,
+  ): MutableDefense | undefined {
+    let nearest: MutableDefense | undefined;
+    let nearestDistance = maximumDistance * maximumDistance;
+    for (const defense of this.defenses) {
+      if (builtOnly && !defense.built) {
+        continue;
+      }
+      const candidateDistance = distanceSquared(origin, defense.position);
+      if (candidateDistance <= nearestDistance) {
+        nearest = defense;
+        nearestDistance = candidateDistance;
+      }
+    }
+    return nearest;
+  }
+
+  private hasOperationalDefense(): boolean {
+    return this.defenses.some((defense) => defense.built);
+  }
+
   private isEnemyTargetable(enemy: MutableEnemy): boolean {
     return enemy.hp > 0 && (enemy.awake || enemy.kind === 'guardian');
   }
@@ -1014,13 +1136,19 @@ export class GameSimulation {
     if (this.player.carriedWood > 0 && this.isPlayerInsideVillage()) {
       return `E — Déposer ${this.player.carriedWood} bois dans votre stock`;
     }
-    if (
-      distance(this.player.position, this.defense.position) <= this.content.player.interactionRange
-    ) {
-      if (!this.defense.built) {
-        return `E — Construire la baliste (${this.content.defense.buildCost} bois)`;
-      }
-      if (this.defense.hp < this.defense.maxHp) {
+    const activeConstruction = this.defenses.find(
+      (defense) => defense.id === this.activeConstructionId,
+    );
+    if (activeConstruction !== undefined) {
+      return `Fabrication en cours — ${(activeConstruction.buildRemainingMs / 1_000).toFixed(1)} s · tout dégât interrompt`;
+    }
+    const nearbyDefense = this.findNearestDefense(
+      this.player.position,
+      this.content.player.interactionRange,
+      true,
+    );
+    if (nearbyDefense !== undefined) {
+      if (nearbyDefense.hp < nearbyDefense.maxHp) {
         return 'E — Réparer la baliste (1 bois)';
       }
       return 'La baliste est opérationnelle.';
@@ -1032,8 +1160,8 @@ export class GameSimulation {
         return `E — Éveiller le Foyer (${this.content.village.levelTwoCost} bois)`;
       }
       if (this.village.heartLevel === 2) {
-        if (!this.defense.built) {
-          return "Construisez d'abord la baliste.";
+        if (!this.hasOperationalDefense()) {
+          return "Fabriquez d'abord une baliste avec B.";
         }
         if (this.player.level < 2) {
           return "Atteignez d'abord le niveau 2.";
@@ -1041,6 +1169,14 @@ export class GameSimulation {
         return `E — Lancer l'activation finale (${this.content.village.ultimateCost} bois)`;
       }
       return 'Le Cœur est en cours d’activation.';
+    }
+    if (this.isPlayerInsideVillage()) {
+      if (!this.canPlaceDefenseAt(this.player.position)) {
+        return 'B — Éloignez-vous du Cœur et des autres balistes.';
+      }
+      return this.player.storedWood >= this.content.defense.buildCost
+        ? `B — Fabriquer une baliste ici (${this.content.defense.buildCost} bois · ${this.content.defense.buildDurationMs / 1_000} s)`
+        : `B — Baliste : ${this.content.defense.buildCost} bois nécessaires`;
     }
     return undefined;
   }
@@ -1058,11 +1194,11 @@ export class GameSimulation {
     if (this.player.carriedWood > 0) {
       return 'Rapportez votre bois au Cœur du village.';
     }
-    if (!this.defense.built) {
-      return 'Explorez, rapportez 4 bois et construisez la baliste.';
+    if (!this.hasOperationalDefense()) {
+      return `Explorez, stockez ${this.content.defense.buildCost} bois et fabriquez une baliste avec B.`;
     }
     if (this.village.heartLevel === 1) {
-      return 'Rapportez 5 bois pour éveiller le Foyer.';
+      return `Rapportez ${this.content.village.levelTwoCost} bois pour éveiller le Foyer.`;
     }
     if (this.player.level < 2) {
       return 'Combattez pour atteindre le niveau 2.';

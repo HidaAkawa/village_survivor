@@ -65,13 +65,14 @@ describe('LocalSession GameSession contract', () => {
     const scheduler = new ManualScheduler();
     const session = new LocalSession({ seed: 'queued-input', scheduler });
     await session.start();
-    session.debug.giveResources(4);
-    session.debug.teleportPlayer(session.debug.getState().defense.position);
-    session.sendInput({ sequence: 1, moveX: 0, moveY: 0, interact: true });
+    session.debug.giveResources(6);
+    session.debug.teleportPlayer({ x: 140, y: 0 });
+    session.sendInput({ sequence: 1, moveX: 0, moveY: 0, buildDefense: true });
     session.sendInput({ sequence: 2, moveX: 0, moveY: 0 });
     scheduler.frame(50);
 
-    expect(session.debug.getState().defense.built).toBe(true);
+    expect(session.debug.getState().defenses).toHaveLength(1);
+    expect(session.debug.getState().defenses[0]?.built).toBe(false);
     await session.stop();
   });
 });

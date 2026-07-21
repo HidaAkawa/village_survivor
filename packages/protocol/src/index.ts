@@ -14,6 +14,7 @@ export type PlayerInput = Readonly<{
   aimX?: number;
   aimY?: number;
   interact?: boolean;
+  buildDefense?: boolean;
   activateSword?: boolean;
   activateBarrier?: boolean;
   selectUpgradeId?: string;
@@ -57,12 +58,15 @@ export type VillageState = Readonly<{
 }>;
 
 export type DefenseState = Readonly<{
+  id: string;
   position: Vector2;
   built: boolean;
   hp: number;
   maxHp: number;
   range: number;
   cooldownRemainingMs: number;
+  buildRemainingMs: number;
+  buildDurationMs: number;
 }>;
 
 export type ResourceNodeState = Readonly<{
@@ -97,7 +101,10 @@ export type GameEventType =
   | 'village-hurt'
   | 'resource-collected'
   | 'resource-deposited'
+  | 'defense-construction-started'
+  | 'defense-construction-interrupted'
   | 'defense-built'
+  | 'defense-destroyed'
   | 'defense-fired'
   | 'sword-auto-attack'
   | 'heart-upgraded'
@@ -132,7 +139,7 @@ export type PublicGameState = Readonly<{
   phaseRemainingMs: number;
   player: PlayerState;
   village: VillageState;
-  defense: DefenseState;
+  defenses: readonly DefenseState[];
   resources: readonly ResourceNodeState[];
   enemies: readonly EnemyState[];
   upgradeChoices: readonly UpgradeChoice[];

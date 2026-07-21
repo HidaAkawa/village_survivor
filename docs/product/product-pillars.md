@@ -62,9 +62,9 @@ Le développement suit deux axes complémentaires :
 - des branches facultatives améliorent notamment les soins, la défense, la production
   ou l'exploration, au prix d'un retard sur l'objectif final.
 
-Les défenses permanentes du village occupent des emplacements prédéfinis. Les
-personnages peuvent également placer librement un nombre limité de constructions
-tactiques. Une défense permanente financée par un joueur devient propriété du village
+Les bâtiments structurants du village peuvent occuper des emplacements prédéfinis. Les
+personnages peuvent placer librement des balistes et autres constructions tactiques,
+dans les limites des ressources et de l'espace disponible. Une défense financée par un joueur devient propriété du village
 dès sa construction : elle protège le groupe et peut être réparée ou améliorée par
 d'autres joueurs avec leurs propres ressources. La contribution initiale reste
 visible.

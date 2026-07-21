@@ -77,7 +77,7 @@ minutes comportant :
 - alternance d'un jour et d'une nuit ;
 - monstres présents le jour puis assaillant le village la nuit ;
 - expérience et petit catalogue d'améliorations ;
-- une défense permanente sur emplacement fixe ;
+- plusieurs balistes librement placées dans le village et fabriquées en temps réel ;
 - un cœur de village améliorable ;
 - un objectif final temporaire déclenchant une dernière vague ;
 - victoire si le village survit à l'activation ;

@@ -60,7 +60,7 @@ if (import.meta.env.DEV) {
       `FPS ${game.loop.actualFps.toFixed(0)}`,
       `tick ${state.tick}`,
       `sim ${sessionMetrics.lastTickDurationMs.toFixed(2)} ms`,
-      `entités ${state.enemies.length + state.resources.filter((resource) => resource.amountRemaining > 0).length + 2 + Number(state.defense.built)}`,
+      `entités ${state.enemies.length + state.resources.filter((resource) => resource.amountRemaining > 0).length + state.defenses.length + 2}`,
       `graine ${state.seed}`,
     ].join(' · ');
   }, 500);

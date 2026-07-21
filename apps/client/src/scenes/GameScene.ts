@@ -14,6 +14,7 @@ interface ControlKeys {
   s: Phaser.Input.Keyboard.Key;
   d: Phaser.Input.Keyboard.Key;
   interact: Phaser.Input.Keyboard.Key;
+  build: Phaser.Input.Keyboard.Key;
   sword: Phaser.Input.Keyboard.Key;
   barrier: Phaser.Input.Keyboard.Key;
 }
@@ -61,6 +62,7 @@ export class GameScene extends Phaser.Scene {
   private sequence = 0;
   private pendingUpgradeId: string | undefined;
   private pendingInteraction = false;
+  private pendingBuild = false;
   private pendingSword = false;
   private pendingBarrier = false;
   private lastRenderedEventId = 0;
@@ -89,6 +91,7 @@ export class GameScene extends Phaser.Scene {
       s: Phaser.Input.Keyboard.KeyCodes.S,
       d: Phaser.Input.Keyboard.KeyCodes.D,
       interact: Phaser.Input.Keyboard.KeyCodes.E,
+      build: Phaser.Input.Keyboard.KeyCodes.B,
       sword: Phaser.Input.Keyboard.KeyCodes.SPACE,
       barrier: Phaser.Input.Keyboard.KeyCodes.SHIFT,
     }) as unknown as ControlKeys;
@@ -96,6 +99,8 @@ export class GameScene extends Phaser.Scene {
     keyboard.on('keydown', (event: KeyboardEvent) => {
       if (event.code === 'KeyE') {
         this.pendingInteraction = true;
+      } else if (event.code === 'KeyB') {
+        this.pendingBuild = true;
       } else if (event.code === 'Space') {
         this.pendingSword = true;
       } else if (event.code === 'ShiftLeft' || event.code === 'ShiftRight') {
@@ -151,12 +156,14 @@ export class GameScene extends Phaser.Scene {
       aimX: aim.x,
       aimY: aim.y,
       interact: this.pendingInteraction,
+      buildDefense: this.pendingBuild,
       activateSword: this.pendingSword,
       activateBarrier: this.pendingBarrier,
       ...(pendingUpgrade === undefined ? {} : { selectUpgradeId: pendingUpgrade }),
     };
     this.pendingUpgradeId = undefined;
     this.pendingInteraction = false;
+    this.pendingBuild = false;
     this.pendingSword = false;
     this.pendingBarrier = false;
     this.session.sendInput(input);
@@ -213,38 +220,52 @@ export class GameScene extends Phaser.Scene {
       graphics.strokeRoundedRect(position.x - 20, position.y - 20, 40, 40, 8);
     }
 
-    const defensePosition = toWorld(state.defense.position);
-    if (state.defense.built) {
-      graphics.fillStyle(COLORS.defense, 0.025);
-      graphics.fillCircle(defensePosition.x, defensePosition.y, state.defense.range);
-      graphics.lineStyle(2, COLORS.defense, 0.22);
-      graphics.strokeCircle(defensePosition.x, defensePosition.y, state.defense.range);
-      graphics.fillStyle(COLORS.defense, 1);
-      graphics.fillTriangle(
-        defensePosition.x - 22,
-        defensePosition.y + 18,
-        defensePosition.x + 22,
-        defensePosition.y + 18,
-        defensePosition.x,
-        defensePosition.y - 24,
-      );
-      this.drawHealthBar(
-        graphics,
-        defensePosition.x - 24,
-        defensePosition.y - 34,
-        48,
-        state.defense.hp / state.defense.maxHp,
-        0xe8d8a8,
-      );
-    } else {
-      graphics.lineStyle(3, COLORS.defense, 0.35);
-      graphics.strokeCircle(defensePosition.x, defensePosition.y, 28);
-      graphics.lineBetween(
-        defensePosition.x - 18,
-        defensePosition.y,
-        defensePosition.x + 18,
-        defensePosition.y,
-      );
+    for (const defense of state.defenses) {
+      const defensePosition = toWorld(defense.position);
+      if (defense.built) {
+        graphics.fillStyle(COLORS.defense, 0.025);
+        graphics.fillCircle(defensePosition.x, defensePosition.y, defense.range);
+        graphics.lineStyle(2, COLORS.defense, 0.22);
+        graphics.strokeCircle(defensePosition.x, defensePosition.y, defense.range);
+        graphics.fillStyle(COLORS.defense, 1);
+        graphics.fillTriangle(
+          defensePosition.x - 22,
+          defensePosition.y + 18,
+          defensePosition.x + 22,
+          defensePosition.y + 18,
+          defensePosition.x,
+          defensePosition.y - 24,
+        );
+        this.drawHealthBar(
+          graphics,
+          defensePosition.x - 24,
+          defensePosition.y - 34,
+          48,
+          defense.hp / defense.maxHp,
+          0xe8d8a8,
+        );
+      } else {
+        const progress = 1 - defense.buildRemainingMs / defense.buildDurationMs;
+        graphics.fillStyle(COLORS.defense, 0.12 + progress * 0.24);
+        graphics.fillCircle(defensePosition.x, defensePosition.y, 27);
+        graphics.lineStyle(4, COLORS.defense, 0.8);
+        graphics.beginPath();
+        graphics.arc(
+          defensePosition.x,
+          defensePosition.y,
+          33,
+          -Math.PI / 2,
+          -Math.PI / 2 + Math.PI * 2 * progress,
+        );
+        graphics.strokePath();
+        graphics.lineStyle(3, COLORS.defense, 0.65);
+        graphics.lineBetween(
+          defensePosition.x - 18,
+          defensePosition.y,
+          defensePosition.x + 18,
+          defensePosition.y,
+        );
+      }
     }
 
     graphics.fillStyle(COLORS.village, state.village.underAttack ? 0.75 : 1);
@@ -349,6 +370,11 @@ export class GameScene extends Phaser.Scene {
         graphics.fillCircle(enemyPoint.x, enemyPoint.y, enemy.kind === 'brute' ? 3 : 2);
       }
     }
+    for (const defense of state.defenses) {
+      const defensePoint = point(defense.position);
+      graphics.fillStyle(COLORS.defense, defense.built ? 1 : 0.45);
+      graphics.fillRect(defensePoint.x - 2, defensePoint.y - 2, 4, 4);
+    }
     const villagePoint = point(state.village.position);
     graphics.fillStyle(COLORS.village, 1);
     graphics.fillCircle(villagePoint.x, villagePoint.y, 4);
@@ -385,15 +411,33 @@ export class GameScene extends Phaser.Scene {
         this.renderSwordSlash(state, event.origin, event.position);
         continue;
       }
-      if (event.type !== 'enemy-hit' && event.type !== 'resource-collected') {
+      if (
+        event.type !== 'enemy-hit' &&
+        event.type !== 'resource-collected' &&
+        event.type !== 'defense-built' &&
+        event.type !== 'defense-construction-interrupted'
+      ) {
         continue;
       }
-      const color = event.type === 'enemy-hit' ? '#ffe7a0' : '#b8f4a5';
+      const color =
+        event.type === 'enemy-hit'
+          ? '#ffe7a0'
+          : event.type === 'defense-construction-interrupted'
+            ? '#ff8fa3'
+            : '#b8f4a5';
+      const label =
+        event.type === 'enemy-hit'
+          ? `-${Math.ceil(event.amount ?? 0)}`
+          : event.type === 'resource-collected'
+            ? `+${event.amount ?? 0}`
+            : event.type === 'defense-built'
+              ? 'BALISTE PRÊTE'
+              : 'FABRICATION INTERROMPUE';
       const text = this.add
         .text(
           event.position.x + state.world.width / 2,
           event.position.y + state.world.height / 2 - 22,
-          event.type === 'enemy-hit' ? `-${Math.ceil(event.amount ?? 0)}` : `+${event.amount ?? 0}`,
+          label,
           {
             color,
             fontFamily: 'system-ui, sans-serif',

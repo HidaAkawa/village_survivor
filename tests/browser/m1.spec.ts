@@ -65,13 +65,16 @@ test('drives the M1 through construction, activation and victory', async ({ page
     if (debug === undefined) {
       throw new Error('API de débogage absente en développement.');
     }
-    debug.giveResources(20);
+    debug.giveResources(32);
     debug.giveExperience(20);
-    debug.teleportPlayer(debug.getState().defense.position);
+    debug.teleportPlayer({ x: 140, y: 0 });
   });
-  await page.keyboard.press('KeyE');
+  await page.keyboard.press('KeyB');
+  await page.evaluate(() => window.__VILLAGE_SURVIVOR_DEBUG__!.advance(5_100));
   await expect
-    .poll(() => page.evaluate(() => window.__VILLAGE_SURVIVOR_DEBUG__?.getState().defense.built))
+    .poll(() =>
+      page.evaluate(() => window.__VILLAGE_SURVIVOR_DEBUG__?.getState().defenses[0]?.built),
+    )
     .toBe(true);
 
   await page.evaluate(() => {
