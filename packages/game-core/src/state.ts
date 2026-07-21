@@ -43,6 +43,7 @@ export interface MutablePlayer {
   barrierDurationMs: number;
   barrierActiveRemainingMs: number;
   selectedUpgrades: string[];
+  pendingUpgrades: number;
   lastAim: Vector2;
 }
 

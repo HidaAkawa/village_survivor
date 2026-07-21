@@ -42,15 +42,30 @@ export class Hud {
   private readonly onUpgrade: (upgradeId: string) => void;
   private upgradeSignature = '';
   private terminalStatus: PublicGameState['status'] | undefined;
+  private upgradePanelOpen = false;
 
   public constructor(element: HTMLElement, onUpgrade: (upgradeId: string) => void) {
     this.element = element;
     this.onUpgrade = onUpgrade;
   }
 
+  /** Le panneau ne s'impose jamais : c'est le joueur qui l'ouvre quand il le peut. */
+  public toggleUpgradePanel(): void {
+    this.upgradePanelOpen = !this.upgradePanelOpen;
+  }
+
+  public isUpgradePanelOpen(): boolean {
+    return this.upgradePanelOpen;
+  }
+
   public render(state: PublicGameState): void {
     const upgradeSignature = state.upgradeChoices.map((choice) => choice.id).join('|');
     const isTerminal = state.status === 'victory' || state.status === 'defeat';
+    if (state.upgradeChoices.length === 0) {
+      this.upgradePanelOpen = false;
+    }
+    const showUpgradePanel =
+      state.status === 'running' && this.upgradePanelOpen && state.upgradeChoices.length > 0;
     if (
       isTerminal &&
       state.status === this.terminalStatus &&
@@ -60,7 +75,7 @@ export class Hud {
     }
     if (
       !isTerminal &&
-      upgradeSignature !== '' &&
+      showUpgradePanel &&
       upgradeSignature === this.upgradeSignature &&
       this.element.querySelector('[data-testid="upgrade-panel"]') !== null
     ) {
@@ -77,12 +92,12 @@ export class Hud {
             <button type="button" id="restart-game">Recommencer</button>
           </section>`
         : '';
-    const upgradePanel =
-      state.status === 'running' && state.upgradeChoices.length > 0
-        ? `<section class="upgrades" data-testid="upgrade-panel">
-            <p class="eyebrow">NIVEAU ${state.player.level}</p>
+    const pending = state.player.pendingUpgrades;
+    const upgradePanel = showUpgradePanel
+      ? `<section class="upgrades" data-testid="upgrade-panel">
+            <p class="eyebrow">NIVEAU ${state.player.level}${pending > 1 ? ` · ${pending} EN ATTENTE` : ''}</p>
             <h2>Choisissez une amélioration</h2>
-            <p>Le monde continue pendant votre choix.</p>
+            <p>Le monde continue pendant votre choix. <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> ou clic.</p>
             <div class="upgrade-grid">
               ${state.upgradeChoices
                 .map(
@@ -97,6 +112,16 @@ export class Hud {
                 .join('')}
             </div>
           </section>`
+      : '';
+    // Le HUD est reconstruit à chaque publication : une animation CSS repartirait
+    // de zéro à chaque frame. La pulsation est donc dérivée du temps simulé.
+    const pulse = 0.55 + 0.45 * Math.sin(state.elapsedMs / 190);
+    const pendingBanner =
+      state.status === 'running' && pending > 0 && !showUpgradePanel
+        ? `<button type="button" class="upgrade-pending" data-testid="upgrade-pending" style="--pulse:${pulse.toFixed(3)}">
+            <strong>${pending} amélioration${pending > 1 ? 's' : ''} à choisir</strong>
+            <span>Appuyez sur <kbd>F</kbd></span>
+          </button>`
         : '';
     const hint = escapeHtml(
       state.interactionHint ?? 'Explorez les alentours et surveillez la minimap.',
@@ -123,7 +148,7 @@ export class Hud {
         <div class="stat-heading"><span>Personnage</span><strong>Niv. ${state.player.level}</strong></div>
         <div class="bar"><i style="width:${playerHp}%"></i><span>${Math.ceil(state.player.hp)} / ${state.player.maxHp} PV</span></div>
         <div class="bar bar--ward"><i style="width:${percentage(state.player.ward, state.player.maxWard)}%"></i><span>${Math.ceil(state.player.ward)} garde</span></div>
-        <div class="bar bar--xp"><i style="width:${experience}%"></i><span>${Math.floor(state.player.experience)} / ${state.player.experienceToNext} XP</span></div>
+        <div class="bar bar--xp${pending > 0 ? ' bar--xp-pending' : ''}"><i style="width:${experience}%"></i><span>${Math.floor(state.player.experience)} / ${state.player.experienceToNext} XP</span></div>
         <div class="inventory">
           <span>Transport <strong data-testid="carried-wood">${state.player.carriedWood}/${state.player.carryCapacity}</strong></span>
           <span>Stock <strong data-testid="stored-wood">${state.player.storedWood}</strong></span>
@@ -141,7 +166,8 @@ export class Hud {
         <div><kbd>Espace</kbd><span>Fente</span><strong>${cooldownLabel(state.player.sword.cooldownRemainingMs)}</strong></div>
         <div class="ability--barrier"><kbd>Maj</kbd><span>Barrière</span><strong>${cooldownLabel(state.player.barrier.cooldownRemainingMs)}</strong></div>
       </section>
-      <footer class="controls"><span><kbd>ZQSD</kbd> / flèches · déplacement</span><span><kbd>E</kbd> · interagir</span><span><kbd>B</kbd> · baliste à votre position</span><span>Souris · viser</span></footer>
+      <footer class="controls"><span><kbd>ZQSD</kbd> / flèches · déplacement</span><span><kbd>E</kbd> · interagir</span><span><kbd>B</kbd> · baliste à votre position</span><span><kbd>F</kbd> · améliorations</span><span>Souris · viser</span></footer>
+      ${pendingBanner}
       ${upgradePanel}
       ${resultPanel}
     `;
@@ -154,6 +180,9 @@ export class Hud {
         }
       });
     }
+    this.element
+      .querySelector('[data-testid="upgrade-pending"]')
+      ?.addEventListener('click', () => this.toggleUpgradePanel());
     this.element.querySelector('#restart-game')?.addEventListener('click', () => location.reload());
   }
 }

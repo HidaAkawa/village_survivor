@@ -35,6 +35,12 @@ const COLORS = {
   defense: 0xe8d8a8,
 };
 
+/**
+ * L'empreinte au sol du personnage est celle de son anneau de garde, pas celle de
+ * son corps : une ombre calée sur le corps resterait cachée derrière cet anneau.
+ */
+const PLAYER_FOOTPRINT_RADIUS = 24;
+
 const ENEMY_KINDS: readonly EnemyKind[] = ['guardian', 'sleeper', 'raider', 'brute'];
 const SPARK_TEXTURE = 'vs-spark';
 
@@ -312,16 +318,21 @@ export class GameScene extends Phaser.Scene {
     for (const enemy of state.enemies) {
       this.drawShadow(enemy.position, enemyRadius(enemy.kind), visuals.shadowAlpha);
     }
-    this.drawShadow(state.player.position, 16, visuals.shadowAlpha);
+    this.drawShadow(state.player.position, PLAYER_FOOTPRINT_RADIUS, visuals.shadowAlpha);
   }
 
+  /**
+   * L'ellipse est posée au pied de l'entité et non sous son centre : `fillEllipse`
+   * prend des dimensions totales, donc une ombre centrée plus haut resterait
+   * entièrement masquée par le corps opaque dessiné par-dessus.
+   */
   private drawShadow(position: Vector2, radius: number, alpha: number): void {
     this.graphics.fillStyle(0x000000, alpha);
     this.graphics.fillEllipse(
       position.x + this.offsetX,
-      position.y + this.offsetY + radius * 0.58,
-      radius * 1.85,
-      radius * 0.74,
+      position.y + this.offsetY + radius,
+      radius * 1.8,
+      radius * 0.66,
     );
   }
 

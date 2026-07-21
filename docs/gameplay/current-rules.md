@@ -23,7 +23,8 @@ fonctionnelle et les principaux garde-fous techniques :
 - disciplines fixes Épée et Barrière : attaque automatique, Fente, protection passive
   et Dôme actif ;
 - montée de niveau avec trois choix d'amélioration pondérés, variés et reproductibles
-  à graine identique, sans pause de la simulation ;
+  à graine identique, sans pause de la simulation ; les niveaux gagnés s'accumulent et
+  le panneau de choix ne s'ouvre qu'à la demande du joueur ;
 - zone du village délimitée visuellement avec indication intérieur/extérieur ;
 - fabrication de plusieurs balistes librement placées dans le village, avec chantier
   de cinq secondes interrompu par les dégâts, portée visible et tirs animés, puis
@@ -120,6 +121,10 @@ boucle.
 - À chaque niveau, trois améliorations compatibles sont proposées.
 - La simulation ne se met jamais en pause, en solo comme en multijoueur, et les choix
   restent disponibles jusqu'à sélection.
+- Gagner un niveau ne suspend pas la progression : les choix dus s'empilent et le
+  joueur les résout quand il le peut, sans jamais perdre la vue sur l'action.
+- Chaque offre est tirée au moment où elle est présentée, jamais d'avance : deux
+  niveaux empilés ne peuvent donc pas proposer deux fois la même amélioration.
 - L'expérience doit reconnaître les contributions récentes ; la proximité constitue
   un premier remplacement acceptable.
 - Les contributeurs admissibles reçoivent initialement une part égale.

@@ -66,12 +66,23 @@ sémantique n'est encore appliquée, car aucune version jouable n'a été publi�
   corps et les barres de vie les suivant, afin de rester lisible en cas de
   chevauchement ;
 
+- gagner un niveau n'interrompt plus l'action : les améliorations dues s'empilent, un
+  rappel pulsé les signale et le joueur ouvre le panneau avec `F` quand il le peut,
+  puis choisit à la souris ou avec `1`, `2` et `3` ;
+- un niveau gagné alors qu'un choix est déjà en attente ne suspend plus la
+  progression, et chaque offre est tirée au moment d'être présentée pour qu'aucune
+  amélioration ne soit proposée deux fois ;
+
 ### Corrigé
 
 - les événements d'une frame traitant plusieurs ticks ne sont plus perdus : la session
   les collecte après chaque tick au lieu de ne publier que ceux du dernier, ce qui
   rétablit les flashes d'impact et les gerbes de particules manquants après un blocage
-  du navigateur ou une accélération de la simulation.
+  du navigateur ou une accélération de la simulation ;
+- les ombres portées étaient calées sous le centre des entités et restaient donc
+  entièrement masquées par leur corps opaque ; elles sont désormais posées au pied de
+  chaque entité. L'empreinte du personnage suit son anneau de garde et non son corps,
+  faute de quoi son ombre restait cachée derrière cet anneau.
 
 ### Sécurité
 

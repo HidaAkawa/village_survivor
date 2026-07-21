@@ -163,6 +163,11 @@ compétence active, créer une synergie ou renforcer une statistique générale.
 simulation ne se met jamais en pause, en solo comme en coopération. Une proposition
 non choisie reste disponible.
 
+Gagner un niveau alors qu'une proposition attend déjà ne suspend pas la progression :
+les choix dus s'accumulent et le joueur les résout au moment qui lui convient. L'écran
+de sélection ne s'impose jamais pendant un combat, mais un rappel visible empêche
+d'oublier une amélioration acquise.
+
 L'expérience privilégie les contributions réelles et récentes : dégâts, soins,
 protections, contrôle et autres aides mesurables. Si ce suivi est trop complexe pour
 un premier incrément, la proximité du monstre sert temporairement d'approximation.

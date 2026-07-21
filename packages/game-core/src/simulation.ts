@@ -98,6 +98,7 @@ export class GameSimulation {
       barrierDurationMs: content.barrier.activeDurationMs,
       barrierActiveRemainingMs: 0,
       selectedUpgrades: [],
+      pendingUpgrades: 0,
       lastAim: { x: 1, y: 0 },
     };
     this.village = {
@@ -628,29 +629,46 @@ export class GameSimulation {
     }
   }
 
+  /**
+   * Les niveaux s'empilent : une offre en attente ne suspend plus la progression,
+   * afin que le joueur puisse repousser son choix jusqu'à un moment calme.
+   */
   private addExperience(amount: number): void {
-    if (this.upgradeChoices.length > 0) {
-      this.player.experience += amount;
-      return;
-    }
     this.player.experience += amount;
-    if (this.player.experience < this.player.experienceToNext) {
+    while (this.player.experience >= this.player.experienceToNext) {
+      this.player.experience -= this.player.experienceToNext;
+      this.player.level += 1;
+      this.player.experienceToNext =
+        this.content.progression.experiencePerLevel[this.player.level - 1] ??
+        this.content.progression.fallbackExperienceToNext;
+      this.player.pendingUpgrades += 1;
+      this.addEvent('level-up', `Niveau ${this.player.level} atteint.`, {
+        position: this.player.position,
+      });
+    }
+    this.refreshUpgradeChoices();
+  }
+
+  /**
+   * Une offre est tirée à la demande, jamais d'avance : deux niveaux empilés ne
+   * peuvent donc pas proposer deux fois la même amélioration.
+   */
+  private refreshUpgradeChoices(): void {
+    if (this.player.pendingUpgrades <= 0 || this.upgradeChoices.length > 0) {
       return;
     }
-    this.player.experience -= this.player.experienceToNext;
-    this.player.level += 1;
-    this.player.experienceToNext =
-      this.content.progression.experiencePerLevel[this.player.level - 1] ??
-      this.content.progression.fallbackExperienceToNext;
-    this.upgradeChoices = selectWeightedUpgrades(
+    const choices = selectWeightedUpgrades(
       this.content.upgrades,
       this.player.selectedUpgrades,
       this.content.progression.upgradeChoiceCount,
       this.upgradeRandom,
     );
-    this.addEvent('level-up', `Niveau ${this.player.level} atteint.`, {
-      position: this.player.position,
-    });
+    if (choices.length === 0) {
+      // Catalogue épuisé : plus rien à choisir, la dette est abandonnée.
+      this.player.pendingUpgrades = 0;
+      return;
+    }
+    this.upgradeChoices = choices;
   }
 
   private handleUpgradeSelection(input: PlayerInput): void {
@@ -664,7 +682,9 @@ export class GameSimulation {
     this.applyUpgrade(upgrade);
     this.player.selectedUpgrades.push(upgrade.id);
     this.upgradeChoices = [];
+    this.player.pendingUpgrades = Math.max(0, this.player.pendingUpgrades - 1);
     this.addEvent('upgrade-selected', upgrade.name, { position: this.player.position });
+    this.refreshUpgradeChoices();
   }
 
   private applyUpgrade(upgrade: UpgradeDefinition): void {

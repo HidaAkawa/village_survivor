@@ -268,6 +268,58 @@ describe('GameSimulation', () => {
     expect(distinctOffers.size).toBeGreaterThan(1);
   });
 
+  it('stacks further levels instead of suspending progression on a pending choice', () => {
+    const simulation = new GameSimulation(defaultContent, 'stacked-upgrades');
+    simulation.start();
+    const [first, second] = defaultContent.progression.experiencePerLevel;
+
+    simulation.giveExperience(first! + second!);
+    let state = simulation.createSnapshot();
+    expect(state.player.level).toBe(3);
+    expect(state.player.pendingUpgrades).toBe(2);
+    expect(state.upgradeChoices).toHaveLength(defaultContent.progression.upgradeChoiceCount);
+
+    // Un seul choix est résolu à la fois, et une nouvelle offre le remplace.
+    const firstChoice = state.upgradeChoices[0]!;
+    simulation.step(input(1, { selectUpgradeId: firstChoice.id }));
+    state = simulation.createSnapshot();
+    expect(state.player.pendingUpgrades).toBe(1);
+    expect(state.player.selectedUpgrades).toEqual([firstChoice.id]);
+    expect(state.upgradeChoices).not.toHaveLength(0);
+    expect(state.upgradeChoices.some((choice) => choice.id === firstChoice.id)).toBe(false);
+
+    const secondChoice = state.upgradeChoices[0]!;
+    simulation.step(input(2, { selectUpgradeId: secondChoice.id }));
+    state = simulation.createSnapshot();
+    expect(state.player.pendingUpgrades).toBe(0);
+    expect(state.upgradeChoices).toHaveLength(0);
+  });
+
+  it('abandons the pending debt once the upgrade catalogue is exhausted', () => {
+    const simulation = new GameSimulation(defaultContent, 'exhausted-catalogue');
+    simulation.start();
+    let sequence = 0;
+    for (let index = 0; index < defaultContent.upgrades.length + 2; index += 1) {
+      simulation.giveExperience(500);
+      const choice = simulation.createSnapshot().upgradeChoices[0];
+      if (choice !== undefined) {
+        simulation.step(input(sequence++, { selectUpgradeId: choice.id }));
+      }
+    }
+
+    expect(simulation.createSnapshot().player.selectedUpgrades).toHaveLength(
+      defaultContent.upgrades.length,
+    );
+
+    // Des niveaux gagnés alors qu'il ne reste rien à proposer ne doivent pas
+    // laisser une dette que le joueur ne pourrait jamais solder.
+    simulation.giveExperience(5_000);
+    const state = simulation.createSnapshot();
+    expect(state.player.level).toBeGreaterThan(7);
+    expect(state.upgradeChoices).toHaveLength(0);
+    expect(state.player.pendingUpgrades).toBe(0);
+  });
+
   it('publishes a directional event for the automatic sword attack', () => {
     const simulation = new GameSimulation(defaultContent, 'sword-animation');
     simulation.start();

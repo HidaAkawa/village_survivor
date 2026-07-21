@@ -19,7 +19,7 @@ const PHASE_VISUALS: Readonly<Record<GamePhase, PhaseVisuals>> = {
     ground: 0xe9ede5,
     grid: 0xc5cec5,
     gridAlpha: 0.8,
-    shadowAlpha: 0.22,
+    shadowAlpha: 0.27,
     outline: 0x165a6d,
   },
   night: {

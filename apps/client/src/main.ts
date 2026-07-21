@@ -25,9 +25,34 @@ const scene = new GameScene(session);
 const hud = new Hud(hudElement, (upgradeId) => scene.selectUpgrade(upgradeId));
 const audio = new AudioFeedback();
 
+let latestState: ReturnType<VillageSurvivorDebug['getState']> | undefined;
 session.subscribe((state) => {
+  latestState = state;
   hud.render(state);
   audio.consume(state);
+});
+
+// `F` ouvre le panneau d'améliorations quand le joueur le décide ; `1`, `2` et `3`
+// choisissent sans quitter le clavier une fois qu'il est ouvert.
+window.addEventListener('keydown', (event) => {
+  if (event.repeat || latestState === undefined) {
+    return;
+  }
+  if (event.code === 'KeyF') {
+    if (latestState.upgradeChoices.length > 0) {
+      hud.toggleUpgradePanel();
+      hud.render(latestState);
+    }
+    return;
+  }
+  if (!hud.isUpgradePanelOpen()) {
+    return;
+  }
+  const index = ['Digit1', 'Digit2', 'Digit3'].indexOf(event.code);
+  const choice = index < 0 ? undefined : latestState.upgradeChoices[index];
+  if (choice !== undefined) {
+    scene.selectUpgrade(choice.id);
+  }
 });
 
 const game = new Phaser.Game({

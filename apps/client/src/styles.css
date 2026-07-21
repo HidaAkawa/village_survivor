@@ -233,6 +233,14 @@ kbd {
   background: linear-gradient(90deg, #6e994f, #b8df71);
 }
 
+.bar--xp-pending {
+  box-shadow: 0 0 0 1px rgb(244 199 111 / 70%);
+}
+
+.bar--xp-pending i {
+  background: linear-gradient(90deg, #c9962f, #ffd98a);
+}
+
 .bar--village i {
   background: linear-gradient(90deg, #b78036, #f4c76f);
 }
@@ -407,6 +415,43 @@ kbd {
   color: #81918f;
   background: linear-gradient(0deg, rgb(7 13 15 / 85%), transparent);
   font-size: 10px;
+}
+
+/*
+ * Rappel des améliorations en attente. La pulsation arrive par la variable
+ * --pulse, calculée à partir du temps simulé : le HUD étant reconstruit à chaque
+ * publication, une animation CSS repartirait de zéro à chaque frame.
+ */
+.upgrade-pending {
+  position: absolute;
+  /* Juste au-dessus de `.interaction`, qui occupe déjà le bas de l'écran. */
+  bottom: 156px;
+  left: 50%;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 11px 26px;
+  transform: translateX(-50%) scale(calc(1 + var(--pulse, 0) * 0.035));
+  border: 1px solid rgb(244 199 111 / calc(45% + var(--pulse, 0) * 55%));
+  border-radius: 14px;
+  background: rgb(31 22 8 / 94%);
+  box-shadow: 0 0 calc(14px + var(--pulse, 0) * 26px) rgb(244 199 111 / 45%);
+  color: #ffe9a6;
+  font: inherit;
+  text-align: center;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.upgrade-pending strong {
+  font-size: 15px;
+  letter-spacing: 0.02em;
+}
+
+.upgrade-pending span {
+  color: rgb(255 233 166 / 72%);
+  font-size: 11px;
+  text-transform: uppercase;
 }
 
 .upgrades,

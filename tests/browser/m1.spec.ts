@@ -66,7 +66,7 @@ test('drives the M1 through construction, activation and victory', async ({ page
       throw new Error('API de débogage absente en développement.');
     }
     debug.giveResources(32);
-    debug.giveExperience(20);
+    debug.giveExperience(45); // deux niveaux d'un coup : les choix doivent s'empiler
     debug.teleportPlayer({ x: 140, y: 0 });
   });
   await page.keyboard.press('KeyB');
@@ -88,9 +88,29 @@ test('drives the M1 through construction, activation and victory', async ({ page
     )
     .toBe(2);
 
+  // Le panneau ne s'impose plus : il attend que le joueur l'ouvre.
+  await expect(page.getByTestId('upgrade-pending')).toContainText('2 améliorations à choisir');
+  await expect(page.getByTestId('upgrade-panel')).toBeHidden();
+  await page.keyboard.press('KeyF');
   await expect(page.getByTestId('upgrade-panel')).toBeVisible();
+
+  // Le premier choix ne referme pas le panneau : une nouvelle offre le remplace.
+  const firstChoice = await page
+    .locator('[data-upgrade-id]')
+    .first()
+    .getAttribute('data-upgrade-id');
+  await page.locator('[data-upgrade-id]').first().click();
+  await expect(page.getByTestId('upgrade-panel')).toBeVisible();
+  await expect(page.locator(`[data-upgrade-id="${firstChoice}"]`)).toHaveCount(0);
+
   await page.locator('[data-upgrade-id]').first().click();
   await expect(page.getByTestId('upgrade-panel')).toBeHidden();
+  await expect(page.getByTestId('upgrade-pending')).toBeHidden();
+  expect(
+    await page.evaluate(
+      () => window.__VILLAGE_SURVIVOR_DEBUG__?.getState().player.selectedUpgrades.length,
+    ),
+  ).toBe(2);
   await page.keyboard.press('KeyE');
   await expect
     .poll(() => page.evaluate(() => window.__VILLAGE_SURVIVOR_DEBUG__?.getState().phase))

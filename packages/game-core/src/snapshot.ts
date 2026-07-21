@@ -82,6 +82,7 @@ export function createPublicGameState(source: SnapshotSource): PublicGameState {
         activeRemainingMs: source.player.barrierActiveRemainingMs,
       },
       selectedUpgrades: [...source.player.selectedUpgrades],
+      pendingUpgrades: source.player.pendingUpgrades,
     },
     village: {
       position: { ...source.village.position },

@@ -46,6 +46,8 @@ export type PlayerState = Readonly<{
   sword: AbilityState;
   barrier: AbilityState & Readonly<{ activeRemainingMs: number }>;
   selectedUpgrades: readonly string[];
+  /** Améliorations gagnées et pas encore choisies, l'offre courante comprise. */
+  pendingUpgrades: number;
 }>;
 
 export type VillageState = Readonly<{
