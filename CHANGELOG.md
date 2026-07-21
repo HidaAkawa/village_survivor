@@ -24,8 +24,12 @@ sémantique n'est encore appliquée, car aucune version jouable n'a été publi�
 - inventaire fonctionnel et matrice de sélection du prototype historique ;
 - cadrage technique initial avec exigences identifiées et règles de changement ;
 - vue d'ensemble de l'architecture locale puis multijoueur ;
+- ombres portées sous les entités, flash blanc à l'impact et gerbes de particules
+  teintées par espèce à la mort d'un ennemi ;
+- tri des entités par ordonnée, caméra lissée anticipant la direction visée et
+  paramètres visuels de phase isolés en fonctions pures testées hors navigateur ;
 - ADR du monorepo, de la simulation, des sessions, du serveur autoritaire, du contenu
-  piloté par les données et de la persistance différée ;
+  piloté par les données, de la persistance différée et du rendu en mode immédiat ;
 - matrice de traçabilité des exigences ;
 - règles de gameplay courantes, feuille de route et cible de déploiement ;
 - porte d'entrée documentaire du dépôt.
@@ -54,6 +58,13 @@ sémantique n'est encore appliquée, car aucune version jouable n'a été publi�
   session locale ne crée l'état public qu'au moment de le publier ;
 - le mouvement, le combat, la construction, les phases, le ciblage et la projection
   d'état sont séparés de l'orchestrateur `GameSimulation` ;
+- la nuit tombe désormais progressivement pendant les dernières secondes du jour, et
+  l'aube revient de la même manière, au lieu d'un changement brutal de couleur ; la
+  bascule vers l'activation finale reste une rupture assumée puisqu'elle est déclenchée
+  par le joueur ;
+- le rendu du monde est organisé en passes ordonnées, les ombres précédant tous les
+  corps et les barres de vie les suivant, afin de rester lisible en cas de
+  chevauchement ;
 
 ### Sécurité
 

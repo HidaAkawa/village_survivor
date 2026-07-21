@@ -36,7 +36,7 @@ indiqué dans la dernière colonne.
 | `REQ-NET-002` | [ADR-0004](../decisions/0004-authoritative-multiplayer-server.md) | `NetworkSession`, client et serveur | Tests multi-clients et reconnexion | Différé |
 | `REQ-CONTENT-001` | [ADR-0005](../decisions/0005-data-driven-content.md) | `packages/content` | Catalogue centralisé | Implémenté pour M1 |
 | `REQ-CONTENT-002` | [ADR-0005](../decisions/0005-data-driven-content.md) | Schémas Zod et chargeur | Tests valides et invalides | Implémenté pour M1 |
-| `REQ-ASSET-001` | Cadrage initial | Rendu de formes et audio synthétique client | Revue visuelle navigateur | Temporaire M1 implémenté |
+| `REQ-ASSET-001` | Cadrage initial, [ADR-0007](../decisions/0007-immediate-mode-entity-rendering.md) | Rendu de formes en passes ordonnées, `apps/client/src/render`, audio synthétique | Tests unitaires de phase et d'impact, revue visuelle navigateur | Temporaire M1 implémenté |
 | `REQ-ASSET-002` | Cadrage initial | `scripts/assets` | Contrôles automatisés d'assets | Différé au premier asset |
 | `REQ-ASSET-003` | [Analyse historique](../product/legacy-analysis/selection-matrix.md) | Métadonnées de provenance | Contrôle de licence en revue | Documenté |
 | `REQ-TEST-001` | Cadrage initial | Tests proches des packages | `pnpm test` | Implémenté pour M1 |
@@ -44,7 +44,7 @@ indiqué dans la dernière colonne.
 | `REQ-TEST-003` | [ADR-0004](../decisions/0004-authoritative-multiplayer-server.md) | `tests/multiplayer` | Clients Colyseus de test | Différé |
 | `REQ-TEST-004` | Cadrage initial | `tests/browser` et API debug | Playwright et erreurs console | Implémenté pour M1 |
 | `REQ-DEBUG-001` | [Vue d'architecture](../architecture/overview.md) | `LocalSession` et client développement | E2E et smoke de production | Implémenté pour M1 |
-| `REQ-PERF-001` | Cadrage initial | Test de performance `game-core` | `pnpm benchmark` | Scénario implémenté, budgets à chiffrer |
+| `REQ-PERF-001` | Cadrage initial, [ADR-0007](../decisions/0007-immediate-mode-entity-rendering.md) | Test de performance `game-core`, coût de rendu de la scène | `pnpm benchmark` pour la simulation, observation navigateur pour le rendu | Simulation automatisée, rendu mesuré manuellement, budgets à chiffrer |
 | `REQ-PERF-002` | Cadrage initial | Métriques de développement client | FPS, tick, simulation, entités, graine | Observabilité M1 implémentée |
 | `REQ-CI-001` | [ADR-0001](../decisions/0001-pnpm-monorepo.md), [déploiement](../deployment.md) | Scripts racine et GitHub Actions | Pipeline complet | Implémenté |
 | `REQ-DEPLOY-001` | [Déploiement](../deployment.md) | `apps/client/dist`, puis Cloudflare | Build et smoke de production | Build prêt, accès non configuré |

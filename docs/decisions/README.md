@@ -22,6 +22,7 @@ dupliquer.
 | [0004](0004-authoritative-multiplayer-server.md) | Accepté | Utiliser un serveur Colyseus autoritaire en multijoueur |
 | [0005](0005-data-driven-content.md) | Accepté | Piloter le contenu et l'équilibrage par des données validées |
 | [0006](0006-defer-persistence.md) | Accepté | Différer base de données et persistance de compte |
+| [0007](0007-immediate-mode-entity-rendering.md) | Accepté | Rendre les entités en mode immédiat trié par profondeur |
 
 ## Convention
 

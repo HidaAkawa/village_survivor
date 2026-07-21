@@ -31,6 +31,9 @@ fonctionnelle et les principaux garde-fous techniques :
 - pression renforcée dès la première nuit : davantage de groupes dormants et de
   renforts, ennemis plus résistants et dangereux, personnage et village moins
   permissifs ;
+- lisibilité du combat assurée par des ombres portées, un flash à l'impact, un ordre
+  d'affichage par profondeur et une tombée de la nuit progressive ; ces retours sont
+  purement visuels et ne modifient aucune règle ;
 - victoire après l'activation finale, défaite à la mort du personnage ou à la
   destruction du village.
 

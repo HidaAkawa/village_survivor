@@ -186,6 +186,25 @@ isolée dans `snapshot.ts` et n'est pas exécutée par `step()`.
 Phaser traduit l'état public en objets visuels. Les objets Phaser peuvent être mis en
 pool et interpolés, mais ne définissent jamais la vérité du jeu.
 
+Le monde est actuellement dessiné en mode immédiat dans un `Graphics` unique, organisé
+en passes ordonnées : sol et grille, marquages au sol, ombres, corps triés par ordonnée
+croissante, barres de vie, puis dôme de barrière. Les ombres précèdent tous les corps et
+les barres de vie les suivent, ce qui garantit la lisibilité en cas de chevauchement. Le
+choix du mode immédiat et ses limites sont consignés dans
+[ADR-0007](../decisions/0007-immediate-mode-entity-rendering.md).
+
+Le client détient un état visuel transitoire que la simulation ne connaît pas :
+intensité résiduelle d'un impact et couleurs interpolées de la phase courante. Cet état
+est isolé dans `apps/client/src/render`, sans dépendance à Phaser, et testé hors
+navigateur. Il obéit à deux règles :
+
+- il ne remonte jamais vers la simulation et n'influence aucune décision de gameplay ;
+- il n'est pas reproductible à partir d'une graine, contrairement à l'état officiel.
+
+Les effets ponctuels déclenchés par les événements du tick — gerbes de particules, tirs
+et arcs de lame — utilisent des émetteurs et des objets créés au démarrage puis
+réutilisés, afin que la boucle de rendu n'alloue rien par entité et par frame.
+
 Les premiers assets sont temporaires et standardisés. Tout asset conserve dans ses
 métadonnées sa source, son auteur, sa licence et les transformations effectuées. Les
 scripts vérifient progressivement dimensions, transparence, alignement et complétude.
@@ -236,6 +255,7 @@ Voir [`../deployment.md`](../deployment.md) pour le processus prévu et son éta
 - [ADR-0004 — Serveur multijoueur autoritaire](../decisions/0004-authoritative-multiplayer-server.md)
 - [ADR-0005 — Contenu piloté par les données](../decisions/0005-data-driven-content.md)
 - [ADR-0006 — Persistance différée](../decisions/0006-defer-persistence.md)
+- [ADR-0007 — Rendu des entités en mode immédiat](../decisions/0007-immediate-mode-entity-rendering.md)
 
 ## 16. Garde-fous pour le premier MVP
 
