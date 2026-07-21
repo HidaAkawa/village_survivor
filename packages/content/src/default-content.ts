@@ -87,6 +87,7 @@ export const rawDefaultContent = {
       attackRange: 38,
       attackCooldownMs: 1_050,
       experience: 12,
+      woodReward: 0,
     },
     sleeper: {
       maxHp: 38,
@@ -95,6 +96,7 @@ export const rawDefaultContent = {
       attackRange: 36,
       attackCooldownMs: 1_100,
       experience: 8,
+      woodReward: 0,
     },
     raider: {
       maxHp: 46,
@@ -103,6 +105,7 @@ export const rawDefaultContent = {
       attackRange: 38,
       attackCooldownMs: 1_000,
       experience: 9,
+      woodReward: 1,
     },
     brute: {
       maxHp: 130,
@@ -111,6 +114,7 @@ export const rawDefaultContent = {
       attackRange: 48,
       attackCooldownMs: 1_350,
       experience: 22,
+      woodReward: 2,
     },
   },
   enemyBehavior: {
@@ -130,10 +134,17 @@ export const rawDefaultContent = {
     night: {
       baseRaiderCount: 3,
       raidersPerCycle: 2,
+      bruteStartCycle: 2,
+      bruteBaseCount: 1,
+      brutesPerCycle: 1,
       spawnRing: {
         minimumRadius: 850,
         maximumRadius: 1_020,
       },
+    },
+    escalation: {
+      hpPerCycle: 0.12,
+      damagePerCycle: 0.08,
     },
     dayReinforcements: {
       baseCount: 2,

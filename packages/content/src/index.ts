@@ -22,6 +22,8 @@ const enemySchema = z.object({
   attackRange: positiveNumber,
   attackCooldownMs: positiveNumber,
   experience: nonNegativeNumber,
+  /** Bois laissé à la mort. Rend la ressource récupérable en défendant. */
+  woodReward: z.number().int().nonnegative(),
 });
 
 const upgradeSchema = z.object({
@@ -140,7 +142,15 @@ export const gameContentSchema = z
       night: z.object({
         baseRaiderCount: z.number().int().nonnegative(),
         raidersPerCycle: z.number().int().nonnegative(),
+        bruteStartCycle: z.number().int().min(1),
+        bruteBaseCount: z.number().int().nonnegative(),
+        brutesPerCycle: z.number().int().nonnegative(),
         spawnRing: ringSchema,
+      }),
+      // Mise à l'échelle par cycle des assaillants générés. Le cycle 1 vaut ×1.
+      escalation: z.object({
+        hpPerCycle: nonNegativeNumber,
+        damagePerCycle: nonNegativeNumber,
       }),
       dayReinforcements: z.object({
         baseCount: z.number().int().nonnegative(),
@@ -174,6 +184,19 @@ export const gameContentSchema = z
         code: 'custom',
         path: ['progression', 'upgradeChoiceCount'],
         message: "ne peut pas dépasser le nombre d'améliorations disponibles",
+      });
+    }
+    // Le bois statique doit à lui seul couvrir le chemin obligatoire de victoire :
+    // une baliste, l'éveil du Foyer et l'activation finale. Sans cette garantie, un
+    // joueur pourrait épuiser la ressource finie avant de pouvoir gagner.
+    const staticWood = content.world.resourceNodeCount * content.world.woodPerNode;
+    const mandatoryWood =
+      content.defense.buildCost + content.village.levelTwoCost + content.village.ultimateCost;
+    if (staticWood < mandatoryWood) {
+      context.addIssue({
+        code: 'custom',
+        path: ['world', 'woodPerNode'],
+        message: `le bois statique (${staticWood}) doit couvrir le coût obligatoire de victoire (${mandatoryWood})`,
       });
     }
   });

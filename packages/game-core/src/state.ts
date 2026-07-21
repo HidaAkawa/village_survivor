@@ -9,6 +9,8 @@ export interface MutableEnemy {
   maxHp: number;
   awake: boolean;
   attackCooldownRemainingMs: number;
+  /** Multiplie les dégâts de base ; croît par cycle pour les assauts nocturnes. */
+  damageScale: number;
 }
 
 export interface MutableResource {

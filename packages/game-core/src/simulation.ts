@@ -299,19 +299,27 @@ export class GameSimulation {
     }
   }
 
-  private createEnemy(kind: EnemyKind, position: Vector2, home: Vector2, awake: boolean): string {
+  private createEnemy(
+    kind: EnemyKind,
+    position: Vector2,
+    home: Vector2,
+    awake: boolean,
+    statScale: Readonly<{ hp: number; damage: number }> = { hp: 1, damage: 1 },
+  ): string {
     this.enemyCounter += 1;
     const definition = this.content.enemies[kind];
     const id = `enemy-${this.enemyCounter}`;
+    const maxHp = definition.maxHp * statScale.hp;
     this.enemies.push({
       id,
       kind,
       position: { ...position },
       home: { ...home },
-      hp: definition.maxHp,
-      maxHp: definition.maxHp,
+      hp: maxHp,
+      maxHp,
       awake,
       attackCooldownRemainingMs: this.random.between(0, definition.attackCooldownMs),
+      damageScale: statScale.damage,
     });
     return id;
   }
@@ -435,7 +443,25 @@ export class GameSimulation {
     if (enemy.hp <= 0) {
       this.addEvent('enemy-killed', 'Ennemi éliminé.', { position: enemy.position });
       this.addExperience(this.content.enemies[enemy.kind].experience);
+      this.dropWood(enemy);
     }
+  }
+
+  /**
+   * Butin de bois d'un assaillant vaincu. Il rejoint directement le stock : la
+   * ressource statique étant finie, c'est ce qui garantit qu'un joueur ne reste
+   * jamais bloqué sans bois pour atteindre la victoire.
+   */
+  private dropWood(enemy: MutableEnemy): void {
+    const reward = this.content.enemies[enemy.kind].woodReward;
+    if (reward <= 0) {
+      return;
+    }
+    this.player.storedWood += reward;
+    this.addEvent('resource-collected', `+${reward} bois`, {
+      position: enemy.position,
+      amount: reward,
+    });
   }
 
   private removeDefeatedEnemies(): void {
@@ -732,7 +758,11 @@ export class GameSimulation {
     this.phase = 'night';
     this.phaseRemainingMs = this.content.simulation.nightDurationMs;
     awakenAssailants(this.enemies);
-    this.spawnInstructions(nightSpawnInstructions(this.content, this.cycle), true);
+    this.spawnInstructions(
+      nightSpawnInstructions(this.content, this.cycle),
+      true,
+      this.cycleScale(),
+    );
     this.addEvent('phase-changed', `Nuit ${this.cycle} : défendez le village.`);
   }
 
@@ -741,6 +771,7 @@ export class GameSimulation {
     this.cycle += 1;
     this.phaseRemainingMs = this.content.simulation.dayDurationMs;
     restSurvivingAssailants(this.enemies);
+    // Les renforts diurnes ne montent pas en puissance : seuls les assauts le font.
     this.spawnInstructions(dayReinforcementInstructions(this.content, this.cycle), false);
     this.addEvent('phase-changed', `Jour ${this.cycle} : explorez et préparez-vous.`);
   }
@@ -749,18 +780,31 @@ export class GameSimulation {
     this.phase = 'final';
     this.phaseRemainingMs = this.content.simulation.finalDurationMs;
     awakenAssailants(this.enemies);
-    this.spawnInstructions(finalSpawnInstructions(this.content), true);
+    this.spawnInstructions(finalSpawnInstructions(this.content), true, this.cycleScale());
     this.addEvent('phase-changed', 'Activation finale : tenez bon !');
   }
 
-  private spawnInstructions(instructions: readonly SpawnInstruction[], awake: boolean): void {
+  /** Multiplicateurs de PV et de dégâts pour un assaut du cycle courant. */
+  private cycleScale(): Readonly<{ hp: number; damage: number }> {
+    const elapsedCycles = this.cycle - 1;
+    return {
+      hp: 1 + elapsedCycles * this.content.waves.escalation.hpPerCycle,
+      damage: 1 + elapsedCycles * this.content.waves.escalation.damagePerCycle,
+    };
+  }
+
+  private spawnInstructions(
+    instructions: readonly SpawnInstruction[],
+    awake: boolean,
+    statScale: Readonly<{ hp: number; damage: number }> = { hp: 1, damage: 1 },
+  ): void {
     for (const instruction of instructions) {
       for (let index = 0; index < instruction.count; index += 1) {
         const position = this.randomRingPosition(
           instruction.ring.minimumRadius,
           instruction.ring.maximumRadius,
         );
-        this.createEnemy(instruction.kind, position, position, awake);
+        this.createEnemy(instruction.kind, position, position, awake, statScale);
       }
     }
   }

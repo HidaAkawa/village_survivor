@@ -27,13 +27,23 @@ export function restSurvivingAssailants(enemies: readonly MutableEnemy[]): void 
 }
 
 export function nightSpawnInstructions(content: GameContent, cycle: number): SpawnInstruction[] {
-  return [
+  const night = content.waves.night;
+  const instructions: SpawnInstruction[] = [
     {
       kind: 'raider',
-      count: content.waves.night.baseRaiderCount + cycle * content.waves.night.raidersPerCycle,
-      ring: content.waves.night.spawnRing,
+      count: night.baseRaiderCount + cycle * night.raidersPerCycle,
+      ring: night.spawnRing,
     },
   ];
+  // Les brutes n'apparaissent qu'à partir d'une nuit donnée, puis en nombre croissant.
+  const bruteCount =
+    cycle >= night.bruteStartCycle
+      ? night.bruteBaseCount + (cycle - night.bruteStartCycle) * night.brutesPerCycle
+      : 0;
+  if (bruteCount > 0) {
+    instructions.push({ kind: 'brute', count: bruteCount, ring: night.spawnRing });
+  }
+  return instructions;
 }
 
 export function dayReinforcementInstructions(

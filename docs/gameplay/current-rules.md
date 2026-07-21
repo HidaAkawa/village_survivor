@@ -32,6 +32,11 @@ fonctionnelle et les principaux garde-fous techniques :
 - pression renforcée dès la première nuit : davantage de groupes dormants et de
   renforts, ennemis plus résistants et dangereux, personnage et village moins
   permissifs ;
+- assauts croissants à chaque nuit : plus de pillards, apparition puis multiplication
+  des brutes, et montée en puissance des points de vie et des dégâts des assaillants
+  générés ;
+- les assaillants vaincus laissent du bois, ce qui rend la ressource récupérable en
+  défendant et empêche un joueur de rester bloqué sans bois pour gagner ;
 - lisibilité du combat assurée par des ombres portées, un flash à l'impact, un ordre
   d'affichage par profondeur et une tombée de la nuit progressive ; ces retours sont
   purement visuels et ne modifient aucune règle ;
@@ -62,7 +67,13 @@ boucle.
 - L'exploration et les zones découvertes sont partagées par le groupe.
 - Les gisements sont finis et ne se renouvellent pas.
 - La génération doit garantir les ressources nécessaires à la victoire, avec une
-  marge pour les erreurs et les stratégies facultatives.
+  marge pour les erreurs et les stratégies facultatives. Le bois statique des seuls
+  gisements couvre déjà le chemin obligatoire de victoire, et cet invariant est validé
+  au chargement du contenu.
+- En complément des gisements finis, les assaillants vaincus laissent du bois. Cette
+  source renouvelable par le combat garantit qu'un joueur ne peut pas rester
+  définitivement bloqué après avoir dépensé sa réserve, sans remettre en cause la
+  finitude des gisements eux-mêmes.
 
 ## Nuit et monstres
 
@@ -71,6 +82,10 @@ boucle.
 - Les joueurs peuvent les éliminer préventivement pour réduire la menace nocturne.
 - La détection diurne repose initialement sur perception, bruit et jauge de réveil.
 - À la nuit, les groupes non gardiens vivants convergent vers le village.
+- Chaque nuit est plus lourde que la précédente : le nombre d'assaillants augmente, les
+  brutes apparaissent puis se multiplient, et les points de vie comme les dégâts des
+  assaillants générés montent par cycle. Cette montée en puissance ne s'applique qu'aux
+  assauts, pas aux renforts diurnes.
 - La nuit possède une durée fixe.
 - À l'aube, les survivants retournent dans le monde et restent présents sans changer
   de type ni perdre leurs caractéristiques.

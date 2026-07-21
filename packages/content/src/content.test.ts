@@ -51,6 +51,15 @@ describe('game content', () => {
     ).toThrow(/progression\.upgradeChoiceCount/);
   });
 
+  it('rejects a world whose static wood cannot fund the victory path', () => {
+    expect(() =>
+      parseGameContent({
+        ...defaultContent,
+        world: { ...defaultContent.world, woodPerNode: 1 },
+      }),
+    ).toThrow(/world\.woodPerNode[\s\S]*co[uû]t obligatoire de victoire/);
+  });
+
   it('rejects an inverted spawn ring', () => {
     expect(() =>
       parseGameContent({

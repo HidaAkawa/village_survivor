@@ -28,6 +28,10 @@ sémantique n'est encore appliquée, car aucune version jouable n'a été publi�
   teintées par espèce à la mort d'un ennemi ;
 - tri des entités par ordonnée, caméra lissée anticipant la direction visée et
   paramètres visuels de phase isolés en fonctions pures testées hors navigateur ;
+- butin de bois laissé par les assaillants vaincus, source renouvelable qui débloque
+  un joueur ayant épuisé sa réserve ;
+- assauts nocturnes croissants : brutes apparaissant puis se multipliant et montée en
+  puissance des points de vie et des dégâts des assaillants générés à chaque cycle ;
 - ADR du monorepo, de la simulation, des sessions, du serveur autoritaire, du contenu
   piloté par les données, de la persistance différée et du rendu en mode immédiat ;
 - matrice de traçabilité des exigences ;
@@ -82,7 +86,11 @@ sémantique n'est encore appliquée, car aucune version jouable n'a été publi�
 - les ombres portées étaient calées sous le centre des entités et restaient donc
   entièrement masquées par leur corps opaque ; elles sont désormais posées au pied de
   chaque entité. L'empreinte du personnage suit son anneau de garde et non son corps,
-  faute de quoi son ombre restait cachée derrière cet anneau.
+  faute de quoi son ombre restait cachée derrière cet anneau ;
+- un joueur qui dépensait tout son bois en balistes sans jamais activer le Cœur se
+  retrouvait sans ressource et ne pouvait plus gagner, la ressource statique étant
+  finie ; les assaillants vaincus laissent désormais du bois et un invariant de contenu
+  validé garantit que les seuls gisements couvrent déjà le chemin obligatoire.
 
 ### Sécurité
 

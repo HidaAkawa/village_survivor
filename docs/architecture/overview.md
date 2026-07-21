@@ -174,8 +174,10 @@ Principes :
 - relations entre contenus validées ;
 - unités visibles dans les noms ou types ;
 - aucune valeur d'équilibrage cachée dans une scène ;
-- paramètres de génération, perception, vagues et réparation regroupés avec le
-  catalogue par défaut ;
+- paramètres de génération, perception, vagues, réparation, butin et montée en
+  puissance regroupés avec le catalogue par défaut ;
+- invariants métier validés au chargement, par exemple la garantie que le bois statique
+  couvre à lui seul le chemin obligatoire de victoire ;
 - erreurs de validation lisibles au démarrage et en CI ;
 - données de test minimales séparées du catalogue de production.
 

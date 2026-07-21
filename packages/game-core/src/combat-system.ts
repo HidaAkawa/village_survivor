@@ -137,7 +137,7 @@ function moveOrAttackPlayer(
     definition.attackRange + context.content.enemyBehavior.collisionRadius
   ) {
     if (enemy.attackCooldownRemainingMs <= 0) {
-      context.damagePlayer(definition.damage, enemy.position);
+      context.damagePlayer(definition.damage * enemy.damageScale, enemy.position);
       enemy.attackCooldownRemainingMs = definition.attackCooldownMs;
     }
     return;
@@ -161,7 +161,7 @@ function moveOrAttackDefense(
     definition.attackRange + context.content.enemyBehavior.defenseContactPadding
   ) {
     if (enemy.attackCooldownRemainingMs <= 0) {
-      defense.hp = Math.max(0, defense.hp - definition.damage);
+      defense.hp = Math.max(0, defense.hp - definition.damage * enemy.damageScale);
       enemy.attackCooldownRemainingMs = definition.attackCooldownMs;
       if (defense.hp <= 0) {
         context.destroyDefense(defense);
@@ -183,7 +183,7 @@ function moveOrAttackVillage(
     definition.attackRange + context.content.enemyBehavior.villageContactPadding
   ) {
     if (enemy.attackCooldownRemainingMs <= 0) {
-      let damage = definition.damage;
+      let damage = definition.damage * enemy.damageScale;
       if (
         context.player.barrierActiveRemainingMs > 0 &&
         distance(context.player.position, context.village.position) <=

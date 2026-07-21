@@ -3,6 +3,7 @@ import type { PlayerInput } from '@village-survivor/protocol';
 import { describe, expect, it } from 'vitest';
 
 import { GameSimulation } from '../src/index.js';
+import { nightSpawnInstructions } from '../src/phase-system.js';
 
 function input(sequence: number, overrides: Partial<PlayerInput> = {}): PlayerInput {
   return {
@@ -208,6 +209,59 @@ describe('GameSimulation', () => {
       .enemies.filter((enemy) => enemy.kind !== 'guardian');
     expect(assailants).toHaveLength(14);
     expect(assailants.filter((enemy) => enemy.kind === 'raider')).toHaveLength(5);
+  });
+
+  it('spawns larger, brute-bearing assaults on later nights', () => {
+    const count = (instructions: readonly { count: number }[]): number =>
+      instructions.reduce((total, instruction) => total + instruction.count, 0);
+    const firstNight = nightSpawnInstructions(defaultContent, 1);
+    const laterNight = nightSpawnInstructions(defaultContent, 3);
+
+    expect(count(laterNight)).toBeGreaterThan(count(firstNight));
+    expect(firstNight.some((instruction) => instruction.kind === 'brute')).toBe(false);
+    expect(laterNight.some((instruction) => instruction.kind === 'brute')).toBe(true);
+  });
+
+  it('makes later-night assailants tougher than the first night', () => {
+    const resilient = {
+      ...defaultContent,
+      player: { ...defaultContent.player, maxHp: 1_000_000 },
+      village: { ...defaultContent.village, maxHp: 1_000_000 },
+    };
+    const simulation = new GameSimulation(resilient, 'escalation');
+    simulation.start();
+    const dayTicks = resilient.simulation.dayDurationMs / resilient.simulation.tickMs;
+    const nightTicks = resilient.simulation.nightDurationMs / resilient.simulation.tickMs;
+    let sequence = 0;
+    const run = (ticks: number): void => {
+      for (let tick = 0; tick < ticks; tick += 1) {
+        simulation.step(input(sequence++));
+      }
+    };
+
+    run(dayTicks); // jour 1 -> nuit 1
+    run(nightTicks); // nuit 1 -> jour 2
+    run(dayTicks); // jour 2 -> nuit 2
+
+    const state = simulation.createSnapshot();
+    expect(state.phase).toBe('night');
+    expect(state.cycle).toBe(2);
+    const raiders = state.enemies.filter((enemy) => enemy.kind === 'raider');
+    expect(raiders.some((raider) => raider.maxHp > resilient.enemies.raider.maxHp)).toBe(true);
+  });
+
+  it('drops salvage wood from slain night assailants so victory stays reachable', () => {
+    const simulation = new GameSimulation(defaultContent, 'salvage');
+    simulation.start();
+    simulation.skipToNight();
+    const raider = simulation.createSnapshot().enemies.find((enemy) => enemy.kind === 'raider')!;
+    const before = simulation.createSnapshot().player.storedWood;
+
+    simulation.defeatEnemy(raider.id);
+
+    const after = simulation.createSnapshot();
+    expect(after.player.storedWood).toBe(before + defaultContent.enemies.raider.woodReward);
+    expect(defaultContent.enemies.raider.woodReward).toBeGreaterThan(0);
   });
 
   it('preserves the identity and attributes of enemies surviving the night', () => {
